@@ -42,7 +42,6 @@ class _GetStartedScreenState extends State<GetStartedScreen>
       ),
     );
 
-    
     Future.delayed(const Duration(milliseconds: 200), () {
       if (mounted) _contentController.forward();
     });
@@ -60,18 +59,16 @@ class _GetStartedScreenState extends State<GetStartedScreen>
       PageRouteBuilder(
         pageBuilder: (_, __, ___) => const AuthScreen(),
         transitionsBuilder: (_, animation, __, child) {
-          return SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(1.0, 0.0),
-              end: Offset.zero,
-            ).animate(CurvedAnimation(
+          // Simple fade transition
+          return FadeTransition(
+            opacity: CurvedAnimation(
               parent: animation,
-              curve: Curves.easeOutCubic,
-            )),
+              curve: Curves.easeInOut,
+            ),
             child: child,
           );
         },
-        transitionDuration: const Duration(milliseconds: 500),
+        transitionDuration: const Duration(milliseconds: 300),
       ),
     );
   }
@@ -84,7 +81,7 @@ class _GetStartedScreenState extends State<GetStartedScreen>
       backgroundColor: AppColors.cream,
       body: Stack(
         children: [
-          
+          // ============ TOP CONTENT ============
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -93,7 +90,6 @@ class _GetStartedScreenState extends State<GetStartedScreen>
                 children: [
                   const SizedBox(height: 60),
 
-                 
                   SlideTransition(
                     position: _slideAnimation,
                     child: FadeTransition(
@@ -101,7 +97,7 @@ class _GetStartedScreenState extends State<GetStartedScreen>
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          
+                          // App Logo Row
                           Row(
                             children: [
                               Container(
@@ -131,7 +127,8 @@ class _GetStartedScreenState extends State<GetStartedScreen>
                                   Container(
                                     width: 18,
                                     height: 18,
-                                    margin: const EdgeInsets.symmetric(horizontal: 1),
+                                    margin:
+                                        const EdgeInsets.symmetric(horizontal: 1),
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
                                       border: Border.all(
@@ -165,7 +162,7 @@ class _GetStartedScreenState extends State<GetStartedScreen>
 
                           const SizedBox(height: 50),
 
-                          
+                          // Main Title
                           const Text(
                             'Tame Your',
                             style: TextStyle(
@@ -203,7 +200,6 @@ class _GetStartedScreenState extends State<GetStartedScreen>
 
                           const SizedBox(height: 20),
 
-                          
                           Text(
                             'Inboxie filters the noise and highlights what actually matters. Ready to focus?',
                             style: TextStyle(
@@ -222,7 +218,7 @@ class _GetStartedScreenState extends State<GetStartedScreen>
             ),
           ),
 
-     
+          // ============ BOTTOM WAVES (Static) ============
           Positioned(
             bottom: 0,
             left: 0,
@@ -231,7 +227,7 @@ class _GetStartedScreenState extends State<GetStartedScreen>
               height: size.height * 0.48,
               child: Stack(
                 children: [
-                  
+                  // Yellow Wave
                   Positioned.fill(
                     child: ClipPath(
                       clipper: BottomYellowWaveClipper(),
@@ -241,7 +237,7 @@ class _GetStartedScreenState extends State<GetStartedScreen>
                     ),
                   ),
 
-                  
+                  // Blue Wave with Content
                   Positioned.fill(
                     child: ClipPath(
                       clipper: BottomBlueWaveClipper(),
@@ -253,7 +249,7 @@ class _GetStartedScreenState extends State<GetStartedScreen>
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.end,
                               children: [
-                               
+                                // Get Started Button
                                 SlideTransition(
                                   position: _slideAnimation,
                                   child: FadeTransition(
@@ -268,11 +264,13 @@ class _GetStartedScreenState extends State<GetStartedScreen>
                                           foregroundColor: AppColors.primaryBlue,
                                           elevation: 0,
                                           shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(16),
+                                            borderRadius:
+                                                BorderRadius.circular(16),
                                           ),
                                         ),
                                         child: const Row(
-                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
                                           children: [
                                             Text(
                                               'Get Started',
@@ -282,7 +280,8 @@ class _GetStartedScreenState extends State<GetStartedScreen>
                                               ),
                                             ),
                                             SizedBox(width: 8),
-                                            Icon(Icons.arrow_forward_rounded, size: 22),
+                                            Icon(Icons.arrow_forward_rounded,
+                                                size: 22),
                                           ],
                                         ),
                                       ),
@@ -292,7 +291,6 @@ class _GetStartedScreenState extends State<GetStartedScreen>
 
                                 const SizedBox(height: 16),
 
-                                // Subtitle
                                 FadeTransition(
                                   opacity: _fadeAnimation,
                                   child: const Text(

@@ -12,13 +12,18 @@ class AuthScreen extends StatefulWidget {
 }
 
 class _AuthScreenState extends State<AuthScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   bool _isLoading = false;
   String? _error;
 
+  // Content animation
   late AnimationController _contentController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
+
+  // Wave animation (rises up on enter, goes down on exit)
+  late AnimationController _waveController;
+  late Animation<double> _waveHeightAnimation;
 
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     scopes: [
@@ -31,6 +36,7 @@ class _AuthScreenState extends State<AuthScreen>
   void initState() {
     super.initState();
 
+    // Content animation
     _contentController = AnimationController(
       duration: const Duration(milliseconds: 600),
       vsync: this,
@@ -39,29 +45,62 @@ class _AuthScreenState extends State<AuthScreen>
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _contentController,
-        curve: Curves.easeOut,
+        curve: const Interval(0.2, 1.0, curve: Curves.easeOut),
       ),
     );
 
     _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.2),
+      begin: const Offset(0, 0.15),
       end: Offset.zero,
     ).animate(
       CurvedAnimation(
         parent: _contentController,
+        curve: const Interval(0.2, 1.0, curve: Curves.easeOutCubic),
+      ),
+    );
+
+    // Wave animation: starts LOW (0.48) and rises UP (0.55)
+    _waveController = AnimationController(
+      duration: const Duration(milliseconds: 500),
+      vsync: this,
+    );
+
+    _waveHeightAnimation = Tween<double>(
+      begin: 0.48, // Start at same height as get_started
+      end: 0.55,   // Rise up slightly higher
+    ).animate(
+      CurvedAnimation(
+        parent: _waveController,
         curve: Curves.easeOutCubic,
       ),
     );
 
-    Future.delayed(const Duration(milliseconds: 100), () {
-      if (mounted) _contentController.forward();
+    // Start animations on enter
+    Future.delayed(const Duration(milliseconds: 50), () {
+      if (mounted) {
+        _waveController.forward();
+        _contentController.forward();
+      }
     });
   }
 
   @override
   void dispose() {
     _contentController.dispose();
+    _waveController.dispose();
     super.dispose();
+  }
+
+  void _goBack() async {
+    // Fade out content first
+    _contentController.reverse();
+    
+    // Wave goes back down
+    await _waveController.reverse();
+    
+    if (mounted) {
+      Navigator.pop(context);
+    }
   }
 
   Future<void> _signInWithGoogle() async {
@@ -111,7 +150,7 @@ class _AuthScreenState extends State<AuthScreen>
       backgroundColor: AppColors.cream,
       body: Stack(
         children: [
-         
+          // ============ TOP CONTENT ============
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -121,19 +160,25 @@ class _AuthScreenState extends State<AuthScreen>
                   const SizedBox(height: 20),
 
                   // Back Button
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: AppColors.primaryBlue.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.arrow_back_ios_new_rounded,
-                        color: AppColors.primaryBlue,
-                        size: 20,
+                  SlideTransition(
+                    position: _slideAnimation,
+                    child: FadeTransition(
+                      opacity: _fadeAnimation,
+                      child: GestureDetector(
+                        onTap: _goBack,
+                        child: Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: AppColors.primaryBlue.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.arrow_back_ios_new_rounded,
+                            color: AppColors.primaryBlue,
+                            size: 20,
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -186,7 +231,7 @@ class _AuthScreenState extends State<AuthScreen>
 
                           const SizedBox(height: 16),
 
-                         
+                          // Description
                           Text(
                             'Connect your Gmail to let Inboxie work its magic. We only read, never send without your permission.',
                             style: TextStyle(
@@ -197,7 +242,7 @@ class _AuthScreenState extends State<AuthScreen>
                             ),
                           ),
 
-           
+                          // Error Message
                           if (_error != null) ...[
                             const SizedBox(height: 20),
                             Container(
@@ -236,143 +281,167 @@ class _AuthScreenState extends State<AuthScreen>
             ),
           ),
 
-          
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: SizedBox(
-              height: size.height * 0.48,
-              child: Stack(
-                children: [
-                  // Yellow Wave
-                  Positioned.fill(
-                    child: ClipPath(
-                      clipper: BottomYellowWaveClipper(),
-                      child: Container(
-                        color: AppColors.accentYellow,
+          // ============ ANIMATED BOTTOM WAVES ============
+          AnimatedBuilder(
+            animation: _waveController,
+            builder: (context, child) {
+              return Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: SizedBox(
+                  height: size.height * _waveHeightAnimation.value,
+                  child: Stack(
+                    children: [
+                      // Yellow Wave
+                      Positioned.fill(
+                        child: ClipPath(
+                          clipper: BottomYellowWaveClipper(),
+                          child: Container(
+                            color: AppColors.accentYellow,
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
 
-                
-                  Positioned.fill(
-                    child: ClipPath(
-                      clipper: BottomBlueWaveClipper(),
-                      child: Container(
-                        color: AppColors.primaryBlue,
-                        child: SafeArea(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 32),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                // Google Sign In Button
-                                SlideTransition(
-                                  position: _slideAnimation,
-                                  child: FadeTransition(
-                                    opacity: _fadeAnimation,
-                                    child: SizedBox(
-                                      width: double.infinity,
-                                      height: 56,
-                                      child: ElevatedButton(
-                                        onPressed:
-                                            _isLoading ? null : _signInWithGoogle,
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: AppColors.textLight,
-                                          foregroundColor: AppColors.primaryBlue,
-                                          disabledBackgroundColor:
-                                              AppColors.textLight.withOpacity(0.7),
-                                          elevation: 0,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(16),
-                                          ),
-                                        ),
-                                        child: _isLoading
-                                            ? SizedBox(
-                                                width: 24,
-                                                height: 24,
-                                                child: CircularProgressIndicator(
-                                                  strokeWidth: 2.5,
-                                                  color: AppColors.primaryBlue,
-                                                ),
-                                              )
-                                            : Row(
-                                                mainAxisAlignment:
-                                                    MainAxisAlignment.center,
-                                                children: [
-                                                  
-                                                  Container(
+                      // Blue Wave with Content
+                      Positioned.fill(
+                        child: ClipPath(
+                          clipper: BottomBlueWaveClipper(),
+                          child: Container(
+                            color: AppColors.primaryBlue,
+                            child: SafeArea(
+                              child: Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 32),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: [
+                                    // Google Sign In Button
+                                    SlideTransition(
+                                      position: _slideAnimation,
+                                      child: FadeTransition(
+                                        opacity: _fadeAnimation,
+                                        child: SizedBox(
+                                          width: double.infinity,
+                                          height: 56,
+                                          child: ElevatedButton(
+                                            onPressed: _isLoading
+                                                ? null
+                                                : _signInWithGoogle,
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor:
+                                                  AppColors.textLight,
+                                              foregroundColor:
+                                                  AppColors.primaryBlue,
+                                              disabledBackgroundColor:
+                                                  AppColors.textLight
+                                                      .withOpacity(0.7),
+                                              elevation: 0,
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(16),
+                                              ),
+                                            ),
+                                            child: _isLoading
+                                                ? const SizedBox(
                                                     width: 24,
                                                     height: 24,
-                                                    decoration: BoxDecoration(
-                                                      color: AppColors.textLight,
-                                                      borderRadius:
-                                                          BorderRadius.circular(4),
+                                                    child:
+                                                        CircularProgressIndicator(
+                                                      strokeWidth: 2.5,
+                                                      color:
+                                                          AppColors.primaryBlue,
                                                     ),
-                                                    child: Center(
-                                                      child: Text(
-                                                        'G',
-                                                        style: TextStyle(
-                                                          color: AppColors.primaryBlue,
-                                                          fontSize: 16,
-                                                          fontWeight: FontWeight.w800,
+                                                  )
+                                                : Row(
+                                                    mainAxisAlignment:
+                                                        MainAxisAlignment
+                                                            .center,
+                                                    children: [
+                                                      // Google Icon
+                                                      Container(
+                                                        width: 28,
+                                                        height: 28,
+                                                        decoration:
+                                                            BoxDecoration(
+                                                          color: AppColors
+                                                              .primaryBlue,
+                                                          borderRadius:
+                                                              BorderRadius
+                                                                  .circular(6),
+                                                        ),
+                                                        child: const Center(
+                                                          child: Text(
+                                                            'G',
+                                                            style: TextStyle(
+                                                              color: AppColors
+                                                                  .textLight,
+                                                              fontSize: 16,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w800,
+                                                            ),
+                                                          ),
                                                         ),
                                                       ),
-                                                    ),
+                                                      const SizedBox(width: 12),
+                                                      const Text(
+                                                        'Connect with Gmail',
+                                                        style: TextStyle(
+                                                          fontSize: 16,
+                                                          fontWeight:
+                                                              FontWeight.w700,
+                                                        ),
+                                                      ),
+                                                    ],
                                                   ),
-                                                  const SizedBox(width: 12),
-                                                  const Text(
-                                                    'Connect with Gmail',
-                                                    style: TextStyle(
-                                                      fontSize: 16,
-                                                      fontWeight: FontWeight.w700,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-
-                                const SizedBox(height: 16),
-
-                              
-                                FadeTransition(
-                                  opacity: _fadeAnimation,
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        Icons.lock_outline_rounded,
-                                        color: AppColors.textLight.withOpacity(0.8),
-                                        size: 16,
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        'Privacy focused. Secure connection.',
-                                        style: TextStyle(
-                                          color: AppColors.textLight.withOpacity(0.8),
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w500,
+                                          ),
                                         ),
                                       ),
-                                    ],
-                                  ),
-                                ),
+                                    ),
 
-                                const SizedBox(height: 40),
-                              ],
+                                    const SizedBox(height: 16),
+
+                                    // Privacy Text
+                                    FadeTransition(
+                                      opacity: _fadeAnimation,
+                                      child: Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            Icons.lock_outline_rounded,
+                                            color: AppColors.textLight
+                                                .withOpacity(0.8),
+                                            size: 16,
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            'Privacy focused. Secure connection.',
+                                            style: TextStyle(
+                                              color: AppColors.textLight
+                                                  .withOpacity(0.8),
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+
+                                    const SizedBox(height: 40),
+                                  ],
+                                ),
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
-              ),
-            ),
+                ),
+              );
+            },
           ),
         ],
       ),
