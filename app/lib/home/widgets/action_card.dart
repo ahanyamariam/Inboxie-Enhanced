@@ -7,14 +7,12 @@ class ActionCard extends StatelessWidget {
   final EmailModel email;
   final VoidCallback? onTap;
 
-  const ActionCard({
-    Key? key,
-    required this.email,
-    this.onTap,
-  }) : super(key: key);
+  const ActionCard({Key? key, required this.email, this.onTap})
+    : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    final isDark = AppColors.isDark(context);
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -22,15 +20,17 @@ class ActionCard extends StatelessWidget {
         margin: const EdgeInsets.only(right: 16),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: AppColors.cardBackground,
+          color: AppColors.getCard(context),
           borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.06),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          boxShadow: isDark
+              ? null
+              : [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.06),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -65,8 +65,8 @@ class ActionCard extends StatelessWidget {
                     children: [
                       Text(
                         email.senderName,
-                        style: const TextStyle(
-                          color: AppColors.textPrimary,
+                        style: TextStyle(
+                          color: AppColors.getTextPrimary(context),
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
                         ),
@@ -76,8 +76,8 @@ class ActionCard extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         email.subject,
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
+                        style: TextStyle(
+                          color: AppColors.getTextSecondary(context),
                           fontSize: 13,
                           fontWeight: FontWeight.w500,
                         ),
@@ -96,8 +96,8 @@ class ActionCard extends StatelessWidget {
             Expanded(
               child: Text(
                 email.preview,
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
+                style: TextStyle(
+                  color: AppColors.getTextSecondary(context),
                   fontSize: 13,
                   height: 1.4,
                 ),

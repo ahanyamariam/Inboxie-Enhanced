@@ -11,7 +11,13 @@ class FilterTabs extends StatelessWidget {
     required this.onTabSelected,
   }) : super(key: key);
 
-  static const List<String> tabs = ['All', 'Action', 'Urgent', 'Important', 'Low'];
+  static const List<String> tabs = [
+    'All',
+    'Action',
+    'Urgent',
+    'Important',
+    'Low',
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -33,9 +39,11 @@ class FilterTabs extends StatelessWidget {
                     style: TextStyle(
                       color: isSelected
                           ? AppColors.primaryBlue
-                          : AppColors.textMuted,
+                          : AppColors.getTextMuted(context),
                       fontSize: 15,
-                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                      fontWeight: isSelected
+                          ? FontWeight.w700
+                          : FontWeight.w500,
                     ),
                   ),
                   const SizedBox(height: 6),

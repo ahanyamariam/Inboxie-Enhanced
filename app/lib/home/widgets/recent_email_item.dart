@@ -6,33 +6,30 @@ class RecentEmailItem extends StatelessWidget {
   final EmailModel email;
   final VoidCallback? onTap;
 
-  const RecentEmailItem({
-    Key? key,
-    required this.email,
-    this.onTap,
-  }) : super(key: key);
+  const RecentEmailItem({Key? key, required this.email, this.onTap})
+    : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    final isDark = AppColors.isDark(context);
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(16),
         margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
-          color: AppColors.cardBackground,
+          color: AppColors.getCard(context),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: const Color(0xFFF8FAFC),
-            width: 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.02),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
+          border: Border.all(color: AppColors.getBackground(context), width: 1),
+          boxShadow: isDark
+              ? null
+              : [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.02),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
         ),
         child: Row(
           children: [
@@ -44,7 +41,7 @@ class RecentEmailItem extends StatelessWidget {
                 color: email.avatarColor ?? AppColors.primaryBlue,
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: AppColors.divider,
+                  color: AppColors.getDivider(context),
                   width: 1,
                 ),
               ),
@@ -79,8 +76,8 @@ class RecentEmailItem extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     email.subject,
-                    style: const TextStyle(
-                      color: Color(0xFF64748B),
+                    style: TextStyle(
+                      color: AppColors.getTextSecondary(context),
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                     ),
@@ -94,8 +91,8 @@ class RecentEmailItem extends StatelessWidget {
             // Time
             Text(
               email.timeAgo,
-              style: const TextStyle(
-                color: AppColors.textMuted,
+              style: TextStyle(
+                color: AppColors.getTextMuted(context),
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
               ),

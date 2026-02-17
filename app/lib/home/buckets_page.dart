@@ -7,15 +7,20 @@ import 'package:app/home/models/bucket_model.dart';
 import 'package:app/home/widgets/bucket_card.dart';
 import 'package:app/home/widgets/recent_email_item.dart';
 import 'package:app/home/widgets/bottom_nav.dart';
+import 'package:app/profile/screens/profile_screen.dart';
 
 class BucketsPage extends StatefulWidget {
   final String accessToken;
   final String userEmail;
+  final String? userDisplayName; // ADD
+  final String? userPhotoUrl; // ADD
 
   const BucketsPage({
     Key? key,
     required this.accessToken,
     required this.userEmail,
+    this.userDisplayName, // ADD
+    this.userPhotoUrl, // ADD
   }) : super(key: key);
 
   @override
@@ -80,10 +85,10 @@ class _BucketsPageState extends State<BucketsPage> {
 
     try {
       final messagesResponse = await http.get(
-        Uri.parse('https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=10'),
-        headers: {
-          'Authorization': 'Bearer ${widget.accessToken}',
-        },
+        Uri.parse(
+          'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=10',
+        ),
+        headers: {'Authorization': 'Bearer ${widget.accessToken}'},
       );
 
       if (messagesResponse.statusCode != 200) {
@@ -99,10 +104,10 @@ class _BucketsPageState extends State<BucketsPage> {
         final messageId = message['id'];
         final threadId = message['threadId'];
         final messageDetailResponse = await http.get(
-          Uri.parse('https://gmail.googleapis.com/gmail/v1/users/me/messages/$messageId?format=metadata&metadataHeaders=Subject&metadataHeaders=From'),
-          headers: {
-            'Authorization': 'Bearer ${widget.accessToken}',
-          },
+          Uri.parse(
+            'https://gmail.googleapis.com/gmail/v1/users/me/messages/$messageId?format=metadata&metadataHeaders=Subject&metadataHeaders=From',
+          ),
+          headers: {'Authorization': 'Bearer ${widget.accessToken}'},
         );
 
         if (messageDetailResponse.statusCode == 200) {
@@ -117,7 +122,15 @@ class _BucketsPageState extends State<BucketsPage> {
             if (header['name'] == 'From') from = header['value'];
           }
 
-          emailList.add(_convertToEmailModel(messageId, threadId, subject, from, emailList.length));
+          emailList.add(
+            _convertToEmailModel(
+              messageId,
+              threadId,
+              subject,
+              from,
+              emailList.length,
+            ),
+          );
         }
       }
 
@@ -125,9 +138,17 @@ class _BucketsPageState extends State<BucketsPage> {
         _emails = emailList;
       });
     } catch (e) {
-      setState(() {
-        _error = e.toString();
-      });
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $_error'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } finally {
       setState(() {
         _isLoading = false;
@@ -135,13 +156,35 @@ class _BucketsPageState extends State<BucketsPage> {
     }
   }
 
-  EmailModel _convertToEmailModel(String id, String threadId, String subject, String from, int index) {
+  EmailModel _convertToEmailModel(
+    String id,
+    String threadId,
+    String subject,
+    String from,
+    int index,
+  ) {
     final senderName = from.contains('<') ? from.split('<')[0].trim() : from;
     final senderInitials = _getInitials(senderName);
 
-    final priorities = [Priority.urgent, Priority.important, Priority.low, Priority.action];
-    final actionTypes = [ActionType.directQuestion, ActionType.deadline, ActionType.waitingReply, ActionType.billing, ActionType.none];
-    final avatarColors = [AppColors.primaryBlue, const Color(0xFFF2CB04), const Color(0xFF1565C0), const Color(0xFF0D47A1)];
+    final priorities = [
+      Priority.urgent,
+      Priority.important,
+      Priority.low,
+      Priority.action,
+    ];
+    final actionTypes = [
+      ActionType.directQuestion,
+      ActionType.deadline,
+      ActionType.waitingReply,
+      ActionType.billing,
+      ActionType.none,
+    ];
+    final avatarColors = [
+      AppColors.primaryBlue,
+      const Color(0xFFF2CB04),
+      const Color(0xFF1565C0),
+      const Color(0xFF0D47A1),
+    ];
 
     return EmailModel(
       id: id,
@@ -152,7 +195,9 @@ class _BucketsPageState extends State<BucketsPage> {
       preview: 'This is a preview of the email content...',
       timestamp: DateTime.now().subtract(Duration(hours: index * 2)),
       priority: priorities[index % priorities.length],
-      actionType: index < 3 ? actionTypes[index % actionTypes.length] : ActionType.none,
+      actionType: index < 3
+          ? actionTypes[index % actionTypes.length]
+          : ActionType.none,
       isRead: index % 3 == 0,
       avatarColor: avatarColors[index % avatarColors.length],
     );
@@ -165,15 +210,44 @@ class _BucketsPageState extends State<BucketsPage> {
     return '${parts[0][0]}${parts[parts.length - 1][0]}'.toUpperCase();
   }
 
+  // ============ NAVIGATION ============
+  void _onBottomNavTap(int index) {
+    switch (index) {
+      case 0:
+        // Go back to Home
+        Navigator.pop(context);
+        break;
+      case 1:
+        // Already on Buckets - do nothing
+        break;
+      case 2:
+        // Navigate to Profile
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ProfileScreen(
+              displayName:
+                  widget.userDisplayName ?? widget.userEmail.split('@').first,
+              email: widget.userEmail,
+              photoUrl: widget.userPhotoUrl,
+              accessToken: widget.accessToken,
+            ),
+          ),
+        );
+        break;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isDark = AppColors.isDark(context);
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.getBackground(context),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Compose new email')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Compose new email')));
         },
         backgroundColor: AppColors.primaryBlue,
         child: const Icon(
@@ -183,25 +257,10 @@ class _BucketsPageState extends State<BucketsPage> {
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-bottomNavigationBar: BottomNav(
-  currentIndex: 1, // Buckets page is index 1
-  onTap: (index) {
-    if (index == 0) {
-      // Navigate back to Home/Inbox
-      Navigator.pop(context);
-    } else if (index == 2) {
-      // TODO: Navigate to Settings
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Settings page coming soon')),
-      );
-    } else if (index == 3) {
-      // TODO: Navigate to Profile
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profile page coming soon')),
-      );
-    }
-  },
-),
+      bottomNavigationBar: BottomNav(
+        currentIndex: 1, // Buckets page is index 1
+        onTap: _onBottomNavTap, // UPDATED
+      ),
       body: Stack(
         children: [
           // Wave decorations
@@ -211,7 +270,9 @@ bottomNavigationBar: BottomNav(
             right: 0,
             child: CustomPaint(
               size: Size(MediaQuery.of(context).size.width, 320),
-              painter: WaveAccentPainter(),
+              painter: WaveAccentPainter(
+                color: AppColors.accentYellow.withOpacity(isDark ? 0.1 : 0.2),
+              ),
             ),
           ),
           Positioned(
@@ -220,7 +281,7 @@ bottomNavigationBar: BottomNav(
             right: 0,
             child: CustomPaint(
               size: Size(MediaQuery.of(context).size.width, 280),
-              painter: WaveHeaderPainter(),
+              painter: WaveHeaderPainter(isDark: isDark),
             ),
           ),
 
@@ -235,26 +296,44 @@ bottomNavigationBar: BottomNav(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       // Profile Avatar
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.3),
-                            width: 2,
+                      GestureDetector(
+                        onTap: () {
+                          // Navigate to Profile
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ProfileScreen(
+                                displayName:
+                                    widget.userDisplayName ??
+                                    widget.userEmail.split('@').first,
+                                email: widget.userEmail,
+                                photoUrl: widget.userPhotoUrl,
+                                accessToken: widget.accessToken,
+                              ),
+                            ),
+                          );
+                        },
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.3),
+                              width: 2,
+                            ),
+                            gradient: const LinearGradient(
+                              colors: [
+                                AppColors.accentYellow,
+                                AppColors.waveYellowDark,
+                              ],
+                            ),
                           ),
-                          gradient: const LinearGradient(
-                            colors: [
-                              AppColors.accentYellow,
-                              AppColors.waveYellowDark,
-                            ],
+                          child: const Icon(
+                            Icons.person_rounded,
+                            color: AppColors.primaryBlue,
+                            size: 22,
                           ),
-                        ),
-                        child: const Icon(
-                          Icons.person_rounded,
-                          color: AppColors.primaryBlue,
-                          size: 22,
                         ),
                       ),
 
@@ -269,11 +348,9 @@ bottomNavigationBar: BottomNav(
                         ),
                       ),
 
-                      // Settings
+                      // Back to Home
                       GestureDetector(
-                        onTap: () {
-                          // TODO: Open settings
-                        },
+                        onTap: () => Navigator.pop(context),
                         child: Container(
                           width: 40,
                           height: 40,
@@ -282,7 +359,7 @@ bottomNavigationBar: BottomNav(
                             color: Colors.white.withOpacity(0.1),
                           ),
                           child: const Icon(
-                            Icons.settings_rounded,
+                            Icons.home_rounded,
                             color: Colors.white,
                             size: 24,
                           ),
@@ -294,14 +371,17 @@ bottomNavigationBar: BottomNav(
 
                 // Search Bar
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 16,
+                  ),
                   child: Container(
                     height: 56,
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: AppColors.getSurface(context),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: const Color(0xFFF1F5F9),
+                        color: AppColors.getDivider(context),
                         width: 1,
                       ),
                       boxShadow: [
@@ -325,16 +405,17 @@ bottomNavigationBar: BottomNav(
                         Expanded(
                           child: TextField(
                             controller: _searchController,
-                            decoration: const InputDecoration(
+                            decoration: InputDecoration(
                               hintText: 'Search your emails...',
                               hintStyle: TextStyle(
-                                color: Color(0xFF94A3B8),
+                                color: AppColors.getTextMuted(context),
                                 fontSize: 15,
                                 fontWeight: FontWeight.w500,
                               ),
                               border: InputBorder.none,
                             ),
-                            style: const TextStyle(
+                            style: TextStyle(
+                              color: AppColors.getTextPrimary(context),
                               fontSize: 15,
                               fontWeight: FontWeight.w500,
                             ),
@@ -359,25 +440,31 @@ bottomNavigationBar: BottomNav(
                             children: [
                               // Buckets Grid
                               Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 24),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 24,
+                                ),
                                 child: GridView.builder(
                                   shrinkWrap: true,
                                   physics: const NeverScrollableScrollPhysics(),
-                                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: 2,
-                                    crossAxisSpacing: 16,
-                                    mainAxisSpacing: 16,
-                                    childAspectRatio: 0.95,
-                                  ),
+                                  gridDelegate:
+                                      const SliverGridDelegateWithFixedCrossAxisCount(
+                                        crossAxisCount: 2,
+                                        crossAxisSpacing: 16,
+                                        mainAxisSpacing: 16,
+                                        childAspectRatio: 0.95,
+                                      ),
                                   itemCount: _buckets.length,
                                   itemBuilder: (context, index) {
                                     return BucketCard(
                                       bucket: _buckets[index],
                                       onTap: () {
-                                        // TODO: Navigate to bucket detail
-                                        ScaffoldMessenger.of(context).showSnackBar(
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
                                           SnackBar(
-                                            content: Text('Open ${_buckets[index].title} bucket'),
+                                            content: Text(
+                                              'Open ${_buckets[index].title} bucket',
+                                            ),
                                           ),
                                         );
                                       },
@@ -390,14 +477,19 @@ bottomNavigationBar: BottomNav(
 
                               // Recent Section Header
                               Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 24),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 24,
+                                ),
                                 child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
                                   children: [
-                                    const Text(
+                                    Text(
                                       'Recent',
                                       style: TextStyle(
-                                        color: AppColors.primaryBlue,
+                                        color: AppColors.getTextPrimary(
+                                          context,
+                                        ),
                                         fontSize: 18,
                                         fontWeight: FontWeight.w800,
                                         letterSpacing: -0.5,
@@ -413,17 +505,23 @@ bottomNavigationBar: BottomNav(
                                           vertical: 8,
                                         ),
                                         decoration: BoxDecoration(
-                                          color: const Color(0xFFF8FAFC),
-                                          borderRadius: BorderRadius.circular(20),
+                                          color: AppColors.getCard(context),
+                                          borderRadius: BorderRadius.circular(
+                                            20,
+                                          ),
                                           border: Border.all(
-                                            color: const Color(0xFFF1F5F9),
+                                            color: AppColors.getDivider(
+                                              context,
+                                            ),
                                             width: 1,
                                           ),
                                         ),
-                                        child: const Text(
+                                        child: Text(
                                           'VIEW ALL',
                                           style: TextStyle(
-                                            color: Color(0xFF64748BAD),
+                                            color: AppColors.getTextMuted(
+                                              context,
+                                            ),
                                             fontSize: 11,
                                             fontWeight: FontWeight.w800,
                                             letterSpacing: 1.5,
@@ -439,15 +537,19 @@ bottomNavigationBar: BottomNav(
 
                               // Recent Emails List
                               Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 24),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 24,
+                                ),
                                 child: _emails.isEmpty
-                                    ? const Center(
+                                    ? Center(
                                         child: Padding(
-                                          padding: EdgeInsets.all(32),
+                                          padding: const EdgeInsets.all(32),
                                           child: Text(
                                             'No recent emails',
                                             style: TextStyle(
-                                              color: AppColors.textSecondary,
+                                              color: AppColors.getTextSecondary(
+                                                context,
+                                              ),
                                               fontSize: 15,
                                             ),
                                           ),
@@ -455,15 +557,20 @@ bottomNavigationBar: BottomNav(
                                       )
                                     : ListView.builder(
                                         shrinkWrap: true,
-                                        physics: const NeverScrollableScrollPhysics(),
+                                        physics:
+                                            const NeverScrollableScrollPhysics(),
                                         itemCount: _emails.take(5).length,
                                         itemBuilder: (context, index) {
                                           return RecentEmailItem(
                                             email: _emails[index],
                                             onTap: () {
-                                              ScaffoldMessenger.of(context).showSnackBar(
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
                                                 SnackBar(
-                                                  content: Text('Open: ${_emails[index].subject}'),
+                                                  content: Text(
+                                                    'Open: ${_emails[index].subject}',
+                                                  ),
                                                 ),
                                               );
                                             },
@@ -486,24 +593,39 @@ bottomNavigationBar: BottomNav(
   }
 }
 
-// Wave Painters
+// Wave Painters (unchanged)
 class WaveHeaderPainter extends CustomPainter {
+  final bool isDark;
+
+  WaveHeaderPainter({this.isDark = false});
+
   @override
   void paint(Canvas canvas, Size size) {
+    final colors = isDark
+        ? [const Color(0xFF062E62), const Color(0xFF083E84)]
+        : [const Color(0xFF083E84), const Color(0xFF0a4da3)];
+
     final paint = Paint()
-      ..shader = const LinearGradient(
+      ..shader = LinearGradient(
         begin: Alignment.centerLeft,
         end: Alignment.centerRight,
-        colors: [
-          Color(0xFF083E84),
-          Color(0xFF0a4da3),
-        ],
+        colors: colors,
       ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
 
     final path = Path();
     path.lineTo(0, size.height);
-    path.quadraticBezierTo(size.width * 0.25, size.height * 0.9, size.width * 0.5, size.height * 0.95);
-    path.quadraticBezierTo(size.width * 0.75, size.height, size.width, size.height * 0.9);
+    path.quadraticBezierTo(
+      size.width * 0.25,
+      size.height * 0.9,
+      size.width * 0.5,
+      size.height * 0.95,
+    );
+    path.quadraticBezierTo(
+      size.width * 0.75,
+      size.height,
+      size.width,
+      size.height * 0.9,
+    );
     path.lineTo(size.width, 0);
     path.close();
 
@@ -515,15 +637,28 @@ class WaveHeaderPainter extends CustomPainter {
 }
 
 class WaveAccentPainter extends CustomPainter {
+  final Color color;
+
+  WaveAccentPainter({required this.color});
+
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = const Color(0xFFF2CB04).withOpacity(0.2);
+    final paint = Paint()..color = color;
 
     final path = Path();
     path.lineTo(0, size.height * 0.7);
-    path.quadraticBezierTo(size.width * 0.25, size.height * 0.6, size.width * 0.5, size.height * 0.65);
-    path.quadraticBezierTo(size.width * 0.75, size.height * 0.7, size.width, size.height * 0.6);
+    path.quadraticBezierTo(
+      size.width * 0.25,
+      size.height * 0.6,
+      size.width * 0.5,
+      size.height * 0.65,
+    );
+    path.quadraticBezierTo(
+      size.width * 0.75,
+      size.height * 0.7,
+      size.width,
+      size.height * 0.6,
+    );
     path.lineTo(size.width, 0);
     path.close();
 
