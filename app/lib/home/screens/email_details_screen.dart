@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:app/core/theme/app_colors.dart';
 import 'package:app/core/services/gmail_service.dart';
-import 'package:app/home/models/email_detail_model.dart';
+
 import 'package:app/home/models/thread_model.dart';
 import 'package:app/home/widgets/thread_message_card.dart';
 import 'package:app/home/widgets/compose_sheet.dart';
@@ -26,11 +26,11 @@ class EmailDetailScreen extends StatefulWidget {
 
 class _EmailDetailScreenState extends State<EmailDetailScreen> {
   late GmailService _gmailService;
-  
+
   bool _isLoading = true;
   String? _error;
   ThreadModel? _thread;
-  
+
   final Set<String> _expandedMessages = {};
 
   @override
@@ -131,7 +131,7 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
   Future<void> _sendReply(String to, String subject, String body) async {
     try {
       final latestMessage = _thread!.latestMessage;
-      
+
       await _gmailService.sendEmail(
         to: to,
         subject: subject.startsWith('Re:') ? subject : 'Re: $subject',
@@ -149,7 +149,9 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
             content: const Text('Reply sent successfully!'),
             backgroundColor: Colors.green[600],
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
         );
         _loadThread(); // Reload to show the new message
@@ -182,7 +184,9 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
             content: const Text('Email forwarded successfully!'),
             backgroundColor: Colors.green[600],
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
         );
       }
@@ -229,14 +233,14 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
                 ),
               ),
             ),
-            
+
             Row(
               children: [
                 Container(
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: AppColors.accentYellow.withOpacity(0.2),
+                    color: AppColors.accentYellow.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(
@@ -257,18 +261,22 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
               ],
             ),
             const SizedBox(height: 24),
-            
+
             // TODO: Replace with actual intelligence analysis
-            _buildWhyItem(Icons.help_outline_rounded, 'Direct question detected', true),
+            _buildWhyItem(
+              Icons.help_outline_rounded,
+              'Direct question detected',
+              true,
+            ),
             _buildWhyItem(Icons.reply_rounded, 'No reply from you yet', true),
             _buildWhyItem(Icons.schedule_rounded, 'Waiting for 2 days', false),
-            
+
             const SizedBox(height: 20),
-            
+
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppColors.primaryBlue.withOpacity(0.1),
+                color: AppColors.primaryBlue.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
@@ -305,9 +313,9 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
             width: 36,
             height: 36,
             decoration: BoxDecoration(
-              color: isActive 
-                  ? AppColors.primaryBlue.withOpacity(0.1)
-                  : Colors.grey.withOpacity(0.1),
+              color: isActive
+                  ? AppColors.primaryBlue.withValues(alpha: 0.1)
+                  : Colors.grey.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(
@@ -331,7 +339,7 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
             Container(
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
-                color: Colors.green.withOpacity(0.1),
+                color: Colors.green.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: const Icon(
@@ -353,16 +361,18 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
           SnackBar(
             content: const Text('Archived'),
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
         );
         Navigator.pop(context, true); // Return true to indicate change
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to archive: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to archive: $e')));
       }
     }
   }
@@ -396,16 +406,18 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
             SnackBar(
               content: const Text('Moved to trash'),
               behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
           );
           Navigator.pop(context, true);
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to delete: $e')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Failed to delete: $e')));
         }
       }
     }
@@ -435,10 +447,7 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
         children: [
           Text(
             _thread?.subject ?? widget.initialSubject ?? 'Email',
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-            ),
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -447,7 +456,7 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
               '${_thread!.messageCount} messages in thread',
               style: TextStyle(
                 fontSize: 12,
-                color: Colors.white.withOpacity(0.8),
+                color: Colors.white.withValues(alpha: 0.8),
                 fontWeight: FontWeight.w400,
               ),
             ),
@@ -463,7 +472,9 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
         // More options
         PopupMenuButton<String>(
           icon: const Icon(Icons.more_vert, size: 22),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           onSelected: (value) {
             switch (value) {
               case 'archive':
@@ -557,10 +568,7 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
             const SizedBox(height: 16),
             Text(
               'Loading email...',
-              style: TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 14,
-              ),
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
             ),
           ],
         ),
@@ -578,7 +586,7 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
                 width: 80,
                 height: 80,
                 decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.1),
+                  color: Colors.red.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: const Icon(
@@ -599,10 +607,7 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
               const SizedBox(height: 8),
               Text(
                 _error!,
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 14,
-                ),
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 24),
@@ -629,9 +634,7 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
     }
 
     if (_thread == null || _thread!.messages.isEmpty) {
-      return const Center(
-        child: Text('No email content found'),
-      );
+      return const Center(child: Text('No email content found'));
     }
 
     return RefreshIndicator(
@@ -677,7 +680,7 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, -2),
           ),
@@ -733,9 +736,9 @@ class _BottomActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: isPrimary 
-          ? AppColors.primaryBlue 
-          : AppColors.primaryBlue.withOpacity(0.1),
+      color: isPrimary
+          ? AppColors.primaryBlue
+          : AppColors.primaryBlue.withValues(alpha: 0.1),
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,

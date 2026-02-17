@@ -18,19 +18,22 @@ class HeaderBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = AppColors.isDark(context);
     return Container(
       decoration: BoxDecoration(
         borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(28),
           bottomRight: Radius.circular(28),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        boxShadow: isDark
+            ? null
+            : [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
       ),
       child: ClipRRect(
         borderRadius: const BorderRadius.only(
@@ -38,12 +41,9 @@ class HeaderBanner extends StatelessWidget {
           bottomRight: Radius.circular(28),
         ),
         child: Container(
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: [
-                AppColors.headerYellow,
-                AppColors.headerBlue,
-              ],
+              colors: AppColors.getHeaderGradient(context),
               begin: Alignment.centerLeft,
               end: Alignment.centerRight,
             ),
@@ -92,7 +92,9 @@ class HeaderBanner extends StatelessWidget {
                               Container(
                                 width: 16,
                                 height: 16,
-                                margin: const EdgeInsets.symmetric(horizontal: 1),
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 1,
+                                ),
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
                                   border: Border.all(

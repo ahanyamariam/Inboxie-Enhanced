@@ -124,17 +124,20 @@ class _AuthScreenState extends State<AuthScreen>
         throw Exception('Failed to get access token');
       }
 
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => HomeScreen(
-              accessToken: accessToken,
-              userEmail: account.email,
-            ),
-          ),
-        );
-      }
+     if (mounted) {
+  Navigator.pushAndRemoveUntil(
+    context,
+    MaterialPageRoute(
+      builder: (_) => HomeScreen(
+        accessToken: accessToken,
+        userEmail: account.email,
+        userDisplayName: account.displayName,
+        userPhotoUrl: account.photoUrl,
+      ),
+    ),
+    (route) => false, // This removes ALL previous routes
+  );
+}
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {
@@ -170,7 +173,7 @@ class _AuthScreenState extends State<AuthScreen>
                           width: 44,
                           height: 44,
                           decoration: BoxDecoration(
-                            color: AppColors.primaryBlue.withOpacity(0.1),
+                            color: AppColors.primaryBlue.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: const Icon(
@@ -248,7 +251,7 @@ class _AuthScreenState extends State<AuthScreen>
                             Container(
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                color: Colors.red.withOpacity(0.1),
+                                color: Colors.red.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Row(
@@ -335,7 +338,7 @@ class _AuthScreenState extends State<AuthScreen>
                                                   AppColors.primaryBlue,
                                               disabledBackgroundColor:
                                                   AppColors.textLight
-                                                      .withOpacity(0.7),
+                                                      .withValues(alpha: 0.7),
                                               elevation: 0,
                                               shape: RoundedRectangleBorder(
                                                 borderRadius:
@@ -412,7 +415,7 @@ class _AuthScreenState extends State<AuthScreen>
                                           Icon(
                                             Icons.lock_outline_rounded,
                                             color: AppColors.textLight
-                                                .withOpacity(0.8),
+                                                .withValues(alpha: 0.8),
                                             size: 16,
                                           ),
                                           const SizedBox(width: 6),
@@ -420,7 +423,7 @@ class _AuthScreenState extends State<AuthScreen>
                                             'Privacy focused. Secure connection.',
                                             style: TextStyle(
                                               color: AppColors.textLight
-                                                  .withOpacity(0.8),
+                                                  .withValues(alpha: 0.8),
                                               fontSize: 13,
                                               fontWeight: FontWeight.w500,
                                             ),

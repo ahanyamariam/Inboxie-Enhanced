@@ -41,14 +41,14 @@ class ThreadMessageCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isLatest
-              ? AppColors.primaryBlue.withOpacity(0.3)
-              : Colors.grey.withOpacity(0.15),
+              ? AppColors.primaryBlue.withValues(alpha: 0.3)
+              : Colors.grey.withValues(alpha: 0.15),
           width: isLatest ? 2 : 1,
         ),
         boxShadow: isLatest
             ? [
                 BoxShadow(
-                  color: AppColors.primaryBlue.withOpacity(0.1),
+                  color: AppColors.primaryBlue.withValues(alpha: 0.1),
                   blurRadius: 12,
                   offset: const Offset(0, 4),
                 ),
@@ -199,8 +199,8 @@ class ThreadMessageCard extends StatelessWidget {
               height: 24,
               decoration: BoxDecoration(
                 color: isExpanded
-                    ? AppColors.primaryBlue.withOpacity(0.1)
-                    : Colors.grey.withOpacity(0.1),
+                    ? AppColors.primaryBlue.withValues(alpha: 0.1)
+                    : Colors.grey.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Icon(
@@ -220,7 +220,7 @@ class ThreadMessageCard extends StatelessWidget {
   Widget _buildDivider() {
     return Container(
       height: 1,
-      color: Colors.grey.withOpacity(0.1),
+      color: Colors.grey.withValues(alpha: 0.1),
     );
   }
 
@@ -309,10 +309,10 @@ class ThreadMessageCard extends StatelessWidget {
                 vertical: 10,
               ),
               decoration: BoxDecoration(
-                color: AppColors.primaryBlue.withOpacity(0.08),
+                color: AppColors.primaryBlue.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(
-                  color: AppColors.primaryBlue.withOpacity(0.2),
+                  color: AppColors.primaryBlue.withValues(alpha: 0.2),
                 ),
               ),
               child: Row(
@@ -365,10 +365,10 @@ class ThreadMessageCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.grey.withOpacity(0.05),
+          color: Colors.grey.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: Colors.grey.withOpacity(0.15),
+            color: Colors.grey.withValues(alpha: 0.15),
           ),
         ),
         child: Row(

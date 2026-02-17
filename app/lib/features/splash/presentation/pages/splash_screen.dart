@@ -135,7 +135,7 @@ class _SplashScreenState extends State<SplashScreen>
                       borderRadius: BorderRadius.circular(24),
                       boxShadow: [
                         BoxShadow(
-                          color: AppColors.primaryBlue.withOpacity(0.25),
+                          color: AppColors.primaryBlue.withValues(alpha: 0.25),
                           blurRadius: 20,
                           offset: const Offset(0, 10),
                         ),
@@ -211,7 +211,7 @@ class _SplashScreenState extends State<SplashScreen>
                         valueColor: const AlwaysStoppedAnimation<Color>(
                           AppColors.accentYellow,
                         ),
-                        backgroundColor: AppColors.primaryBlue.withOpacity(0.1),
+                        backgroundColor: AppColors.primaryBlue.withValues(alpha: 0.1),
                       ),
                     ),
                   ),
