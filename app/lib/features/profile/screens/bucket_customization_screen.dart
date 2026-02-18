@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:app/core/theme/app_colors.dart';
-import 'package:app/core/services/storage_service.dart';
-import 'package:app/core/models/bucket_config_model.dart';
+import 'package:app/services/storage_service.dart';
+import 'package:app/models/bucket_config_model.dart';
 
 class BucketCustomizationScreen extends StatefulWidget {
   const BucketCustomizationScreen({super.key});

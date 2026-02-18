@@ -2,14 +2,14 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:app/core/theme/app_colors.dart';
-import 'package:app/home/models/email_model.dart';
-import 'package:app/home/widgets/header_banner.dart';
-import 'package:app/home/widgets/action_card.dart';
-import 'package:app/home/widgets/inbox_list_item.dart';
-import 'package:app/home/widgets/bottom_nav.dart';
-import 'package:app/home/buckets_page.dart';
-import 'package:app/home/screens/email_details_screen.dart';
-import 'package:app/profile/screens/profile_screen.dart';
+import 'package:app/models/email_model.dart';
+import 'package:app/features/home/widgets/header_banner.dart';
+import 'package:app/features/home/widgets/action_card.dart';
+import 'package:app/features/home/widgets/inbox_list_item.dart';
+import 'package:app/features/home/widgets/bottom_nav.dart';
+import 'package:app/features/home/buckets_page.dart';
+import 'package:app/features/home/screens/email_details_screen.dart';
+import 'package:app/features/profile/screens/profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final String accessToken;

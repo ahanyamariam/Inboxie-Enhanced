@@ -1,10 +1,10 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:app/core/models/user_settings_model.dart';
-import 'package:app/core/models/label_config_model.dart';
-import 'package:app/core/models/bucket_config_model.dart';
-import 'package:app/core/models/notification_settings_model.dart';
-import 'package:app/core/models/usage_stats_model.dart';
+import 'package:app/models/user_settings_model.dart';
+import 'package:app/models/label_config_model.dart';
+import 'package:app/models/bucket_config_model.dart';
+import 'package:app/models/notification_settings_model.dart';
+import 'package:app/models/usage_stats_model.dart';
 
 class StorageService {
   // ==================== EXISTING KEYS ====================

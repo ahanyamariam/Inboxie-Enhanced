@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:app/core/theme/app_colors.dart';
-import 'package:app/core/services/storage_service.dart';
-import 'package:app/core/models/notification_settings_model.dart';
-import 'package:app/profile/widgets/settings_section.dart';
-import 'package:app/profile/widgets/settings_tile.dart';
+import 'package:app/services/storage_service.dart';
+import 'package:app/models/notification_settings_model.dart';
+import 'package:app/features/profile/widgets/settings_section.dart';
+import 'package:app/features/profile/widgets/settings_tile.dart';
 
 class NotificationSettingsScreen extends StatefulWidget {
   const NotificationSettingsScreen({super.key});

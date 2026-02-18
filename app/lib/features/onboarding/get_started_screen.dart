@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:app/core/theme/app_colors.dart';
 import 'package:app/features/splash/presentation/widgets/wave_clippers.dart';
-import 'package:app/auth/auth_screen.dart';
+import 'package:app/features/auth/auth_screen.dart';
 
 class GetStartedScreen extends StatefulWidget {
   const GetStartedScreen({super.key});

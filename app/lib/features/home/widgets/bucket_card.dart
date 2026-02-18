@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:app/core/theme/app_colors.dart';
-import 'package:app/home/models/bucket_model.dart';
+import 'package:app/models/bucket_model.dart';
 
 class BucketCard extends StatelessWidget {
   final BucketModel bucket;

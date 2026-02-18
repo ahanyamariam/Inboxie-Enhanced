@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:app/core/theme/app_colors.dart';
-import 'package:app/home/widgets/filter_tabs.dart';
+import 'package:app/features/home/widgets/filter_tabs.dart';
 
 class HeaderBanner extends StatelessWidget {
   final int selectedTabIndex;

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:app/core/theme/app_colors.dart';
-import 'package:app/home/models/email_model.dart';
-import 'package:app/home/widgets/priority_chip.dart';
+import 'package:app/models/email_model.dart';
+import 'package:app/features/home/widgets/priority_chip.dart';
 
 class InboxListItem extends StatelessWidget {
   final EmailModel email;
