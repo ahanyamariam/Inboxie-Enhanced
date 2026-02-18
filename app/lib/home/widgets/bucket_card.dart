@@ -6,8 +6,7 @@ class BucketCard extends StatelessWidget {
   final BucketModel bucket;
   final VoidCallback? onTap;
 
-  const BucketCard({Key? key, required this.bucket, this.onTap})
-    : super(key: key);
+  const BucketCard({super.key, required this.bucket, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -24,7 +23,7 @@ class BucketCard extends StatelessWidget {
               ? null
               : [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
+                    color: Colors.black.withValues(alpha: 0.04),
                     blurRadius: 30,
                     offset: const Offset(0, 8),
                   ),

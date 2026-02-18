@@ -13,7 +13,7 @@ class SettingsTile extends StatelessWidget {
   final bool isDestructive;
 
   const SettingsTile({
-    Key? key,
+    super.key,
     required this.icon,
     this.iconColor,
     this.iconBackgroundColor,
@@ -23,7 +23,7 @@ class SettingsTile extends StatelessWidget {
     this.onTap,
     this.showArrow = false,
     this.isDestructive = false,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -32,8 +32,8 @@ class SettingsTile extends StatelessWidget {
         : (iconColor ?? AppColors.primaryBlue);
     
     final Color effectiveIconBg = isDestructive
-        ? Colors.red.withOpacity(0.1)
-        : (iconBackgroundColor ?? AppColors.primaryBlue.withOpacity(0.1));
+        ? Colors.red.withValues(alpha: 0.1)
+        : (iconBackgroundColor ?? AppColors.primaryBlue.withValues(alpha: 0.1));
 
     return Material(
       color: Colors.transparent,
@@ -91,7 +91,7 @@ class SettingsTile extends StatelessWidget {
                 ),
               ),
               
-              if (trailing != null) trailing!,
+              ?trailing,
               
               if (showArrow && trailing == null)
                 Icon(
@@ -117,7 +117,7 @@ class SettingsToggleTile extends StatelessWidget {
   final ValueChanged<bool> onChanged;
 
   const SettingsToggleTile({
-    Key? key,
+    super.key,
     required this.icon,
     this.iconColor,
     this.iconBackgroundColor,
@@ -125,7 +125,7 @@ class SettingsToggleTile extends StatelessWidget {
     this.subtitle,
     required this.value,
     required this.onChanged,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -138,7 +138,7 @@ class SettingsToggleTile extends StatelessWidget {
       trailing: Switch.adaptive(
         value: value,
         onChanged: onChanged,
-        activeColor: AppColors.primaryBlue,
+        activeTrackColor: AppColors.primaryBlue,
       ),
       onTap: () => onChanged(!value),
     );
@@ -155,7 +155,7 @@ class SettingsSelectorTile extends StatelessWidget {
   final VoidCallback onTap;
 
   const SettingsSelectorTile({
-    Key? key,
+    super.key,
     required this.icon,
     this.iconColor,
     this.iconBackgroundColor,
@@ -163,7 +163,7 @@ class SettingsSelectorTile extends StatelessWidget {
     this.subtitle,
     required this.value,
     required this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -184,7 +184,7 @@ class SettingsSelectorTile extends StatelessWidget {
               vertical: 4,
             ),
             decoration: BoxDecoration(
-              color: AppColors.primaryBlue.withOpacity(0.1),
+              color: AppColors.primaryBlue.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
@@ -218,7 +218,7 @@ class SettingsCountTile extends StatelessWidget {
   final VoidCallback onTap;
 
   const SettingsCountTile({
-    Key? key,
+    super.key,
     required this.icon,
     this.iconColor,
     this.iconBackgroundColor,
@@ -226,7 +226,7 @@ class SettingsCountTile extends StatelessWidget {
     this.subtitle,
     required this.count,
     required this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

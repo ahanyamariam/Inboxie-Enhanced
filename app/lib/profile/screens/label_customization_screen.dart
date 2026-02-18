@@ -197,9 +197,9 @@ class _LabelCustomizationScreenState extends State<LabelCustomizationScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.primaryBlue.withOpacity(0.1),
+        color: AppColors.primaryBlue.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.primaryBlue.withOpacity(0.2)),
+        border: Border.all(color: AppColors.primaryBlue.withValues(alpha: 0.2)),
       ),
       child: Row(
         children: [
@@ -252,7 +252,7 @@ class _LabelCustomizationScreenState extends State<LabelCustomizationScreen> {
             ? null
             : [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.04),
+                  color: Colors.black.withValues(alpha: 0.04),
                   blurRadius: 10,
                   offset: const Offset(0, 2),
                 ),
@@ -272,12 +272,12 @@ class _LabelCustomizationScreenState extends State<LabelCustomizationScreen> {
               color: color,
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
-                color: Colors.white.withOpacity(0.3),
+                color: Colors.white.withValues(alpha: 0.3),
                 width: 2,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: color.withOpacity(0.4),
+                  color: color.withValues(alpha: 0.4),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -328,7 +328,7 @@ class _LabelCustomizationScreenState extends State<LabelCustomizationScreen> {
             ? null
             : [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.04),
+                  color: Colors.black.withValues(alpha: 0.04),
                   blurRadius: 10,
                   offset: const Offset(0, 2),
                 ),
@@ -384,9 +384,9 @@ class _LabelCustomizationScreenState extends State<LabelCustomizationScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
+        color: color.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.5)),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
       ),
       child: Text(
         label,
@@ -537,7 +537,7 @@ class _LabelCustomizationScreenState extends State<LabelCustomizationScreen> {
               itemCount: colors.length,
               itemBuilder: (context, index) {
                 final color = colors[index];
-                final isSelected = color.value == currentColor.value;
+                final isSelected = color.toARGB32() == currentColor.toARGB32();
 
                 return GestureDetector(
                   onTap: () {
@@ -555,7 +555,7 @@ class _LabelCustomizationScreenState extends State<LabelCustomizationScreen> {
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: color.withOpacity(0.4),
+                          color: color.withValues(alpha: 0.4),
                           blurRadius: 8,
                           offset: const Offset(0, 2),
                         ),
@@ -606,6 +606,7 @@ class _LabelCustomizationScreenState extends State<LabelCustomizationScreen> {
             onPressed: () async {
               await _storage.resetLabelConfig();
               _loadConfig();
+              if (!context.mounted) return;
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(

@@ -4,7 +4,7 @@ import 'package:app/core/services/storage_service.dart';
 import 'package:app/profile/widgets/sender_list_tile.dart';
 
 class VipSendersScreen extends StatefulWidget {
-  const VipSendersScreen({Key? key}) : super(key: key);
+  const VipSendersScreen({super.key});
 
   @override
   State<VipSendersScreen> createState() => _VipSendersScreenState();

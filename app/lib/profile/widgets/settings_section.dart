@@ -7,11 +7,11 @@ class SettingsSection extends StatelessWidget {
   final EdgeInsetsGeometry? padding;
 
   const SettingsSection({
-    Key? key,
+    super.key,
     required this.title,
     required this.children,
     this.padding,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -40,7 +40,7 @@ class SettingsSection extends StatelessWidget {
               borderRadius: BorderRadius.circular(16),
               boxShadow: isDark ? null : [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.04),
+                  color: Colors.black.withValues(alpha: 0.04),
                   blurRadius: 10,
                   offset: const Offset(0, 2),
                 ),
@@ -69,8 +69,8 @@ class SettingsSection extends StatelessWidget {
               height: 1,
               thickness: 1,
               color: AppColors.isDark(context) 
-                  ? Colors.white.withOpacity(0.1)
-                  : Colors.grey.withOpacity(0.1),
+                  ? Colors.white.withValues(alpha: 0.1)
+                  : Colors.grey.withValues(alpha: 0.1),
             ),
           ),
         );

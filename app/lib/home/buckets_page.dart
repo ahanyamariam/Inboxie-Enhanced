@@ -16,12 +16,12 @@ class BucketsPage extends StatefulWidget {
   final String? userPhotoUrl; // ADD
 
   const BucketsPage({
-    Key? key,
+    super.key,
     required this.accessToken,
     required this.userEmail,
     this.userDisplayName, // ADD
     this.userPhotoUrl, // ADD
-  }) : super(key: key);
+  });
 
   @override
   State<BucketsPage> createState() => _BucketsPageState();
@@ -271,7 +271,7 @@ class _BucketsPageState extends State<BucketsPage> {
             child: CustomPaint(
               size: Size(MediaQuery.of(context).size.width, 320),
               painter: WaveAccentPainter(
-                color: AppColors.accentYellow.withOpacity(isDark ? 0.1 : 0.2),
+                color: AppColors.accentYellow.withValues(alpha: isDark ? 0.1 : 0.2),
               ),
             ),
           ),
@@ -319,7 +319,7 @@ class _BucketsPageState extends State<BucketsPage> {
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             border: Border.all(
-                              color: Colors.white.withOpacity(0.3),
+                              color: Colors.white.withValues(alpha: 0.3),
                               width: 2,
                             ),
                             gradient: const LinearGradient(
@@ -356,7 +356,7 @@ class _BucketsPageState extends State<BucketsPage> {
                           height: 40,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: Colors.white.withOpacity(0.1),
+                            color: Colors.white.withValues(alpha: 0.1),
                           ),
                           child: const Icon(
                             Icons.home_rounded,
@@ -386,7 +386,7 @@ class _BucketsPageState extends State<BucketsPage> {
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: AppColors.primaryBlue.withOpacity(0.1),
+                          color: AppColors.primaryBlue.withValues(alpha: 0.1),
                           blurRadius: 30,
                           offset: const Offset(0, 8),
                         ),

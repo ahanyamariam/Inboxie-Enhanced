@@ -4,7 +4,7 @@ import 'package:app/features/splash/presentation/widgets/wave_clippers.dart';
 import 'package:app/auth/auth_screen.dart';
 
 class GetStartedScreen extends StatefulWidget {
-  const GetStartedScreen({Key? key}) : super(key: key);
+  const GetStartedScreen({super.key});
 
   @override
   State<GetStartedScreen> createState() => _GetStartedScreenState();
@@ -57,8 +57,8 @@ class _GetStartedScreenState extends State<GetStartedScreen>
     Navigator.push(
       context,
       PageRouteBuilder(
-        pageBuilder: (_, __, ___) => const AuthScreen(),
-        transitionsBuilder: (_, animation, __, child) {
+        pageBuilder: (_, _, _) => const AuthScreen(),
+        transitionsBuilder: (_, animation, _, child) {
           // Simple fade transition
           return FadeTransition(
             opacity: CurvedAnimation(

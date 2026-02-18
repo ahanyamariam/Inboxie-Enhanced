@@ -4,7 +4,7 @@ import 'package:app/core/services/storage_service.dart';
 import 'package:app/profile/widgets/sender_list_tile.dart';
 
 class MutedSendersScreen extends StatefulWidget {
-  const MutedSendersScreen({Key? key}) : super(key: key);
+  const MutedSendersScreen({super.key});
 
   @override
   State<MutedSendersScreen> createState() => _MutedSendersScreenState();

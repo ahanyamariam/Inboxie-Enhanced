@@ -19,7 +19,6 @@ void main() async {
 
   // Load saved theme
   final savedTheme = StorageService().getThemeMode();
-  print('🎨 Loaded theme from storage: $savedTheme');
   themeModeNotifier.value = _getThemeModeFromString(savedTheme);
 
   runApp(const MyApp());
@@ -44,7 +43,6 @@ class MyApp extends StatelessWidget {
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: themeModeNotifier,
       builder: (context, themeMode, child) {
-        print('🎨 Building app with themeMode: $themeMode');
         return MaterialApp(
           title: 'Inboxie',
           debugShowCheckedModeBanner: false,
@@ -106,8 +104,6 @@ class MyApp extends StatelessWidget {
 
 // Global function to change theme
 Future<void> changeTheme(String theme) async {
-  print('🎨 changeTheme called with: $theme');
   await StorageService().setThemeMode(theme);
   themeModeNotifier.value = _getThemeModeFromString(theme);
-  print('🎨 Theme changed to: ${themeModeNotifier.value}');
 }

@@ -5,7 +5,7 @@ import 'package:app/features/splash/presentation/widgets/wave_clippers.dart';
 import 'package:app/home/home_page.dart';
 
 class AuthScreen extends StatefulWidget {
-  const AuthScreen({Key? key}) : super(key: key);
+  const AuthScreen({super.key});
 
   @override
   State<AuthScreen> createState() => _AuthScreenState();

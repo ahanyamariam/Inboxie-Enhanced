@@ -13,12 +13,12 @@ class EmailDetailScreen extends StatefulWidget {
   final String? initialSubject;
 
   const EmailDetailScreen({
-    Key? key,
+    super.key,
     required this.messageId,
     required this.threadId,
     required this.accessToken,
     this.initialSubject,
-  }) : super(key: key);
+  });
 
   @override
   State<EmailDetailScreen> createState() => _EmailDetailScreenState();

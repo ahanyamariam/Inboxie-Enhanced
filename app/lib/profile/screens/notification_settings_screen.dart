@@ -95,7 +95,7 @@ class _NotificationSettingsScreenState
                   SettingsToggleTile(
                     icon: Icons.priority_high_rounded,
                     iconColor: Colors.red,
-                    iconBackgroundColor: Colors.red.withOpacity(0.1),
+                    iconBackgroundColor: Colors.red.withValues(alpha: 0.1),
                     title: 'Urgent emails',
                     subtitle: 'Get notified immediately',
                     value: _settings.urgentEmails,
@@ -105,7 +105,7 @@ class _NotificationSettingsScreenState
                   SettingsToggleTile(
                     icon: Icons.star_rounded,
                     iconColor: Colors.amber,
-                    iconBackgroundColor: Colors.amber.withOpacity(0.1),
+                    iconBackgroundColor: Colors.amber.withValues(alpha: 0.1),
                     title: 'Important emails',
                     subtitle: 'Notifications for important mail',
                     value: _settings.importantEmails,
@@ -115,7 +115,7 @@ class _NotificationSettingsScreenState
                   SettingsToggleTile(
                     icon: Icons.low_priority_rounded,
                     iconColor: Colors.blue,
-                    iconBackgroundColor: Colors.blue.withOpacity(0.1),
+                    iconBackgroundColor: Colors.blue.withValues(alpha: 0.1),
                     title: 'Low priority',
                     subtitle: 'Usually muted by default',
                     value: _settings.lowPriorityEmails,
@@ -134,7 +134,7 @@ class _NotificationSettingsScreenState
                   SettingsToggleTile(
                     icon: Icons.reply_rounded,
                     iconColor: Colors.orange,
-                    iconBackgroundColor: Colors.orange.withOpacity(0.1),
+                    iconBackgroundColor: Colors.orange.withValues(alpha: 0.1),
                     title: 'Needs Action',
                     subtitle: 'Remind me to reply',
                     value: _settings.needsActionReminders,
@@ -145,7 +145,7 @@ class _NotificationSettingsScreenState
                   SettingsToggleTile(
                     icon: Icons.hourglass_bottom_rounded,
                     iconColor: Colors.purple,
-                    iconBackgroundColor: Colors.purple.withOpacity(0.1),
+                    iconBackgroundColor: Colors.purple.withValues(alpha: 0.1),
                     title: 'Waiting for others',
                     subtitle: 'Follow-up reminders',
                     value: _settings.waitingFollowUps,
@@ -155,7 +155,7 @@ class _NotificationSettingsScreenState
                   SettingsToggleTile(
                     icon: Icons.event_rounded,
                     iconColor: Colors.teal,
-                    iconBackgroundColor: Colors.teal.withOpacity(0.1),
+                    iconBackgroundColor: Colors.teal.withValues(alpha: 0.1),
                     title: 'Deadlines',
                     subtitle: 'Upcoming deadline alerts',
                     value: _settings.deadlineReminders,
@@ -174,7 +174,7 @@ class _NotificationSettingsScreenState
                   SettingsToggleTile(
                     icon: Icons.do_not_disturb_on_rounded,
                     iconColor: Colors.indigo,
-                    iconBackgroundColor: Colors.indigo.withOpacity(0.1),
+                    iconBackgroundColor: Colors.indigo.withValues(alpha: 0.1),
                     title: 'Quiet Hours',
                     subtitle: 'Pause notifications at night',
                     value: _settings.quietHoursEnabled,
@@ -236,7 +236,7 @@ class _NotificationSettingsScreenState
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: _settings.enabled
-              ? [AppColors.primaryBlue, AppColors.primaryBlue.withOpacity(0.8)]
+              ? [AppColors.primaryBlue, AppColors.primaryBlue.withValues(alpha: 0.8)]
               : [Colors.grey[400]!, Colors.grey[500]!],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -245,7 +245,7 @@ class _NotificationSettingsScreenState
         boxShadow: [
           BoxShadow(
             color: (_settings.enabled ? AppColors.primaryBlue : Colors.grey)
-                .withOpacity(0.3),
+                .withValues(alpha: 0.3),
             blurRadius: 15,
             offset: const Offset(0, 8),
           ),
@@ -283,7 +283,7 @@ class _NotificationSettingsScreenState
                 Text(
                   _settings.enabled ? 'Currently enabled' : 'Mutually disabled',
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.8),
+                    color: Colors.white.withValues(alpha: 0.8),
                     fontSize: 13,
                   ),
                 ),
@@ -293,8 +293,13 @@ class _NotificationSettingsScreenState
           Switch.adaptive(
             value: _settings.enabled,
             onChanged: (v) => _updateSetting((s) => s.copyWith(enabled: v)),
-            activeTrackColor: Colors.white.withOpacity(0.4),
-            activeColor: Colors.white,
+            activeTrackColor: Colors.white.withValues(alpha: 0.4),
+            thumbColor: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.selected)) {
+                return Colors.white;
+              }
+              return null;
+            }),
           ),
         ],
       ),

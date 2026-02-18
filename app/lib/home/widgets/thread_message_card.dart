@@ -11,13 +11,13 @@ class ThreadMessageCard extends StatelessWidget {
   final VoidCallback? onReply;
 
   const ThreadMessageCard({
-    Key? key,
+    super.key,
     required this.message,
     required this.isExpanded,
     required this.isLatest,
     required this.onTap,
     this.onReply,
-  }) : super(key: key);
+  });
 
   Color get _avatarColor {
     final colors = [
