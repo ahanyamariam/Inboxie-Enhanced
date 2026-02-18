@@ -6,32 +6,29 @@ class BucketCard extends StatelessWidget {
   final BucketModel bucket;
   final VoidCallback? onTap;
 
-  const BucketCard({
-    Key? key,
-    required this.bucket,
-    this.onTap,
-  }) : super(key: key);
+  const BucketCard({Key? key, required this.bucket, this.onTap})
+    : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    final isDark = AppColors.isDark(context);
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: AppColors.cardBackground,
+          color: AppColors.getCard(context),
           borderRadius: BorderRadius.circular(32),
-          border: Border.all(
-            color: AppColors.divider,
-            width: 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 30,
-              offset: const Offset(0, 8),
-            ),
-          ],
+          border: Border.all(color: AppColors.getDivider(context), width: 1),
+          boxShadow: isDark
+              ? null
+              : [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 30,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -40,13 +37,12 @@ class BucketCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Icon(
-                  bucket.icon,
-                  color: AppColors.primaryBlue,
-                  size: 32,
-                ),
+                Icon(bucket.icon, color: AppColors.primaryBlue, size: 32),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 6,
+                  ),
                   constraints: const BoxConstraints(minWidth: 28),
                   decoration: BoxDecoration(
                     color: AppColors.accentYellow,
@@ -78,8 +74,8 @@ class BucketCard extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               bucket.subtitle,
-              style: const TextStyle(
-                color: AppColors.textMuted,
+              style: TextStyle(
+                color: AppColors.getTextMuted(context),
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 1.5,

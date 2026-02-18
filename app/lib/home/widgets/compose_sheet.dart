@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:app/core/theme/app_colors.dart';
+
 import 'package:app/home/models/email_detail_model.dart';
 
 enum ComposeMode {
@@ -42,40 +42,43 @@ class _ComposeSheetState extends State<ComposeSheet> {
   void _initializeFields() {
     if (widget.replyTo != null) {
       final msg = widget.replyTo!;
-      
+
       switch (widget.mode) {
         case ComposeMode.reply:
           _toController.text = msg.fromEmail;
-          _subjectController.text = msg.subject.startsWith('Re:') 
-              ? msg.subject 
+          _subjectController.text = msg.subject.startsWith('Re:')
+              ? msg.subject
               : 'Re: ${msg.subject}';
           break;
-          
+
         case ComposeMode.replyAll:
           final allRecipients = {
             msg.fromEmail,
-            ...msg.to.where((e) => !e.contains('me')), // Exclude self if possible, simplify for now
-            ...msg.cc
+            ...msg.to.where(
+              (e) => !e.contains('me'),
+            ), // Exclude self if possible, simplify for now
+            ...msg.cc,
           }.join(', ');
-          
+
           _toController.text = allRecipients;
-          _subjectController.text = msg.subject.startsWith('Re:') 
-              ? msg.subject 
+          _subjectController.text = msg.subject.startsWith('Re:')
+              ? msg.subject
               : 'Re: ${msg.subject}';
           break;
-          
+
         case ComposeMode.forward:
-          _subjectController.text = msg.subject.startsWith('Fwd:') 
-              ? msg.subject 
+          _subjectController.text = msg.subject.startsWith('Fwd:')
+              ? msg.subject
               : 'Fwd: ${msg.subject}';
-          _bodyController.text = '\n\n---------- Forwarded message ----------\n'
+          _bodyController.text =
+              '\n\n---------- Forwarded message ----------\n'
               'From: ${msg.fromName} <${msg.fromEmail}>\n'
               'Date: ${msg.date}\n'
               'Subject: ${msg.subject}\n'
               'To: ${msg.to.join(", ")}\n\n'
               '${msg.snippet}'; // Ideally full body, but using snippet for now
           break;
-          
+
         case ComposeMode.compose:
           break;
       }
@@ -92,9 +95,9 @@ class _ComposeSheetState extends State<ComposeSheet> {
 
   Future<void> _handleSend() async {
     if (_toController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please add a recipient')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please add a recipient')));
       return;
     }
 
@@ -113,9 +116,9 @@ class _ComposeSheetState extends State<ComposeSheet> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     } finally {
       if (mounted) {
@@ -158,11 +161,11 @@ class _ComposeSheetState extends State<ComposeSheet> {
                 ),
                 TextButton(
                   onPressed: _isSending ? null : _handleSend,
-                  child: _isSending 
+                  child: _isSending
                       ? const SizedBox(
-                          width: 16, 
-                          height: 16, 
-                          child: CircularProgressIndicator(strokeWidth: 2)
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Text(
                           'Send',
@@ -173,14 +176,14 @@ class _ComposeSheetState extends State<ComposeSheet> {
             ),
           ),
           const Divider(height: 1),
-          
+
           // Fields
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
-                   TextField(
+                  TextField(
                     controller: _toController,
                     decoration: const InputDecoration(
                       labelText: 'To',
@@ -194,7 +197,7 @@ class _ComposeSheetState extends State<ComposeSheet> {
                     decoration: const InputDecoration(
                       labelText: 'Subject',
                       border: InputBorder.none,
-                       contentPadding: EdgeInsets.symmetric(vertical: 8),
+                      contentPadding: EdgeInsets.symmetric(vertical: 8),
                     ),
                   ),
                   const Divider(height: 1),

@@ -1,0 +1,49 @@
+Analyzing app...                                                
+
+   info • Parameter 'key' could be a super parameter • lib/auth/auth_screen.dart:8:9 • use_super_parameters
+   info • Parameter 'key' could be a super parameter • lib/features/onboarding/get_started_screen.dart:7:9 • use_super_parameters
+   info • Unnecessary use of multiple underscores • lib/features/onboarding/get_started_screen.dart:60:26 • unnecessary_underscores
+   info • Unnecessary use of multiple underscores • lib/features/onboarding/get_started_screen.dart:60:30 • unnecessary_underscores
+   info • Unnecessary use of multiple underscores • lib/features/onboarding/get_started_screen.dart:61:44 • unnecessary_underscores
+   info • Unnecessary use of multiple underscores • lib/features/splash/presentation/pages/splash_screen.dart:88:28 • unnecessary_underscores
+   info • Unnecessary use of multiple underscores • lib/features/splash/presentation/pages/splash_screen.dart:88:32 • unnecessary_underscores
+   info • Unnecessary use of multiple underscores • lib/features/splash/presentation/pages/splash_screen.dart:89:46 • unnecessary_underscores
+   info • Parameter 'key' could be a super parameter • lib/home/buckets_page.dart:18:9 • use_super_parameters
+warning • The value of the field '_error' isn't used • lib/home/buckets_page.dart:32:11 • unused_field
+   info • Instances of 'Color' should be created using an 8-digit hexadecimal integer (such as '0xFFFFFFFF') • lib/home/buckets_page.dart:470:58 • use_full_hex_values_for_flutter_colors
+   info • Parameter 'key' could be a super parameter • lib/home/home_page.dart:20:9 • use_super_parameters
+   info • 'groupValue' is deprecated and shouldn't be used. Use a RadioGroup ancestor to manage group value instead. This feature was deprecated after v3.32.0-0.0.pre • lib/home/home_page.dart:228:21 • deprecated_member_use
+   info • 'onChanged' is deprecated and shouldn't be used. Use RadioGroup to handle value change instead. This feature was deprecated after v3.32.0-0.0.pre • lib/home/home_page.dart:230:21 • deprecated_member_use
+warning • Unused import: 'package:app/core/theme/app_colors.dart' • lib/home/models/email_model.dart:2:8 • unused_import
+warning • Unused import: 'package:app/home/models/email_detail_model.dart' • lib/home/screens/email_details_screen.dart:4:8 • unused_import
+   info • Parameter 'key' could be a super parameter • lib/home/screens/email_details_screen.dart:15:9 • use_super_parameters
+   info • Parameter 'key' could be a super parameter • lib/home/widgets/action_card.dart:10:9 • use_super_parameters
+   info • Parameter 'key' could be a super parameter • lib/home/widgets/action_chip.dart:8:9 • use_super_parameters
+   info • Parameter 'key' could be a super parameter • lib/home/widgets/bottom_nav.dart:9:9 • use_super_parameters
+   info • Parameter 'key' could be a super parameter • lib/home/widgets/bucket_card.dart:9:9 • use_super_parameters
+warning • Unused import: 'package:app/core/theme/app_colors.dart' • lib/home/widgets/compose_sheet.dart:2:8 • unused_import
+   info • Parameter 'key' could be a super parameter • lib/home/widgets/compose_sheet.dart:18:9 • use_super_parameters
+   info • Parameter 'key' could be a super parameter • lib/home/widgets/email_body_view.dart:9:9 • use_super_parameters
+   info • Parameter 'key' could be a super parameter • lib/home/widgets/filter_tabs.dart:8:9 • use_super_parameters
+   info • Parameter 'key' could be a super parameter • lib/home/widgets/header_banner.dart:11:9 • use_super_parameters
+   info • Parameter 'key' could be a super parameter • lib/home/widgets/inbox_list_item.dart:10:9 • use_super_parameters
+   info • Parameter 'key' could be a super parameter • lib/home/widgets/priority_chip.dart:8:9 • use_super_parameters
+   info • Parameter 'key' could be a super parameter • lib/home/widgets/recent_email_item.dart:9:9 • use_super_parameters
+   info • Parameter 'key' could be a super parameter • lib/home/widgets/thread_message_card.dart:13:9 • use_super_parameters
+   info • Don't invoke 'print' in production code • lib/main.dart:22:3 • avoid_print
+   info • Don't invoke 'print' in production code • lib/main.dart:47:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/main.dart:109:3 • avoid_print
+   info • Don't invoke 'print' in production code • lib/main.dart:112:3 • avoid_print
+   info • Parameter 'key' could be a super parameter • lib/profile/screens/muted_senders_screen.dart:7:9 • use_super_parameters
+  error • Target of URI doesn't exist: 'package:app/core/theme/theme_provider.dart' • lib/profile/screens/profile_screen.dart:17:8 • uri_does_not_exist
+   info • Don't invoke 'print' in production code • lib/profile/screens/profile_screen.dart:154:12 • avoid_print
+   info • Don't invoke 'print' in production code • lib/profile/screens/profile_screen.dart:157:12 • avoid_print
+   info • Don't invoke 'print' in production code • lib/profile/screens/profile_screen.dart:158:12 • avoid_print
+  error • Undefined name 'themeProvider' • lib/profile/screens/profile_screen.dart:158:55 • undefined_identifier
+   info • Don't invoke 'print' in production code • lib/profile/screens/profile_screen.dart:288:9 • avoid_print
+   info • Parameter 'key' could be a super parameter • lib/profile/screens/vip_senders_screen.dart:7:9 • use_super_parameters
+   info • Parameter 'key' could be a super parameter • lib/profile/widgets/sender_list_tile.dart:9:9 • use_super_parameters
+   info • Parameter 'key' could be a super parameter • lib/profile/widgets/settings_section.dart:9:9 • use_super_parameters
+   info • Use the null-aware marker '?' rather than a null check via an 'if' • lib/profile/widgets/settings_tile.dart:91:15 • use_null_aware_elements
+
+45 issues found. (ran in 0.8s)
