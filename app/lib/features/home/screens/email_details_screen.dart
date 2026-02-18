@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:app/core/theme/app_colors.dart';
-import 'package:app/core/services/gmail_service.dart';
+import 'package:app/services/gmail_service.dart';
 
-import 'package:app/home/models/thread_model.dart';
-import 'package:app/home/widgets/thread_message_card.dart';
-import 'package:app/home/widgets/compose_sheet.dart';
+import 'package:app/models/thread_model.dart';
+import 'package:app/features/home/widgets/thread_message_card.dart';
+import 'package:app/features/home/widgets/compose_sheet.dart';
 
 class EmailDetailScreen extends StatefulWidget {
   final String messageId;

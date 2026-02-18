@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:app/core/theme/app_colors.dart';
-import 'package:app/home/models/email_detail_model.dart';
-import 'package:app/home/widgets/email_body_view.dart';
+import 'package:app/models/email_detail_model.dart';
+import 'package:app/features/home/widgets/email_body_view.dart';
 
 class ThreadMessageCard extends StatelessWidget {
   final EmailDetailModel message;

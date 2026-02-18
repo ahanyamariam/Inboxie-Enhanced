@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'package:app/home/models/email_detail_model.dart';
+import 'package:app/models/email_detail_model.dart';
 
 enum ComposeMode {
   reply,

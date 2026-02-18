@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:app/core/theme/app_colors.dart';
-import 'package:app/core/services/storage_service.dart';
-import 'package:app/profile/widgets/sender_list_tile.dart';
+import 'package:app/services/storage_service.dart';
+import 'package:app/features/profile/widgets/sender_list_tile.dart';
 
 class VipSendersScreen extends StatefulWidget {
   const VipSendersScreen({super.key});

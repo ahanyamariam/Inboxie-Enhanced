@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:app/core/theme/app_colors.dart';
-import 'package:app/core/models/usage_stats_model.dart';
-import 'package:app/core/services/storage_service.dart';
+import 'package:app/models/usage_stats_model.dart';
+import 'package:app/services/storage_service.dart';
 
 class UsageStatsScreen extends StatefulWidget {
   const UsageStatsScreen({super.key});

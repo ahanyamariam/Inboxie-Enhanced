@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:app/core/theme/app_colors.dart';
+import 'package:app/services/auth_service.dart';
 import 'package:app/features/splash/presentation/widgets/wave_clippers.dart';
-import 'package:app/home/home_page.dart';
+import 'package:app/features/home/home_page.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -25,12 +25,7 @@ class _AuthScreenState extends State<AuthScreen>
   late AnimationController _waveController;
   late Animation<double> _waveHeightAnimation;
 
-  final GoogleSignIn _googleSignIn = GoogleSignIn(
-    scopes: [
-      'https://www.googleapis.com/auth/gmail.readonly',
-      'https://www.googleapis.com/auth/gmail.send',
-    ],
-  );
+  final AuthService _authService = AuthService();
 
   @override
   void initState() {
@@ -110,34 +105,27 @@ class _AuthScreenState extends State<AuthScreen>
     });
 
     try {
-      final GoogleSignInAccount? account = await _googleSignIn.signIn();
+      final result = await _authService.signInWithGoogle();
 
-      if (account == null) {
+      if (result == null) {
         setState(() => _isLoading = false);
         return;
       }
 
-      final GoogleSignInAuthentication auth = await account.authentication;
-      final String? accessToken = auth.accessToken;
-
-      if (accessToken == null) {
-        throw Exception('Failed to get access token');
+      if (mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (_) => HomeScreen(
+              accessToken: result.accessToken,
+              userEmail: result.email,
+              userDisplayName: result.displayName,
+              userPhotoUrl: result.photoUrl,
+            ),
+          ),
+          (route) => false,
+        );
       }
-
-     if (mounted) {
-  Navigator.pushAndRemoveUntil(
-    context,
-    MaterialPageRoute(
-      builder: (_) => HomeScreen(
-        accessToken: accessToken,
-        userEmail: account.email,
-        userDisplayName: account.displayName,
-        userPhotoUrl: account.photoUrl,
-      ),
-    ),
-    (route) => false, // This removes ALL previous routes
-  );
-}
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {

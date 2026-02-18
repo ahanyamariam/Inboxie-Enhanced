@@ -2,12 +2,12 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:app/core/theme/app_colors.dart';
-import 'package:app/home/models/email_model.dart';
-import 'package:app/home/models/bucket_model.dart';
-import 'package:app/home/widgets/bucket_card.dart';
-import 'package:app/home/widgets/recent_email_item.dart';
-import 'package:app/home/widgets/bottom_nav.dart';
-import 'package:app/profile/screens/profile_screen.dart';
+import 'package:app/models/email_model.dart';
+import 'package:app/models/bucket_model.dart';
+import 'package:app/features/home/widgets/bucket_card.dart';
+import 'package:app/features/home/widgets/recent_email_item.dart';
+import 'package:app/features/home/widgets/bottom_nav.dart';
+import 'package:app/features/profile/screens/profile_screen.dart';
 
 class BucketsPage extends StatefulWidget {
   final String accessToken;

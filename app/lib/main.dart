@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
-import 'package:app/core/services/storage_service.dart';
+import 'package:app/services/storage_service.dart';
 import 'package:app/core/theme/app_colors.dart';
 import 'package:app/features/splash/presentation/pages/splash_screen.dart';
 
