@@ -7,11 +7,8 @@ class InboxListItem extends StatelessWidget {
   final EmailModel email;
   final VoidCallback? onTap;
 
-  const InboxListItem({
-    Key? key,
-    required this.email,
-    this.onTap,
-  }) : super(key: key);
+  const InboxListItem({Key? key, required this.email, this.onTap})
+    : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -19,13 +16,10 @@ class InboxListItem extends StatelessWidget {
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        decoration: const BoxDecoration(
-          color: AppColors.background,
+        decoration: BoxDecoration(
+          color: AppColors.getBackground(context),
           border: Border(
-            bottom: BorderSide(
-              color: AppColors.divider,
-              width: 1,
-            ),
+            bottom: BorderSide(color: AppColors.getDivider(context), width: 1),
           ),
         ),
         child: Column(
@@ -38,15 +32,17 @@ class InboxListItem extends StatelessWidget {
                 Text(
                   email.senderName,
                   style: TextStyle(
-                    color: AppColors.textPrimary,
+                    color: AppColors.getTextPrimary(context),
                     fontSize: 15,
-                    fontWeight: email.isRead ? FontWeight.w500 : FontWeight.w700,
+                    fontWeight: email.isRead
+                        ? FontWeight.w500
+                        : FontWeight.w700,
                   ),
                 ),
                 Text(
                   email.timeAgo,
-                  style: const TextStyle(
-                    color: AppColors.textMuted,
+                  style: TextStyle(
+                    color: AppColors.getTextMuted(context),
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                   ),
@@ -60,7 +56,7 @@ class InboxListItem extends StatelessWidget {
             Text(
               email.subject,
               style: TextStyle(
-                color: AppColors.textPrimary,
+                color: AppColors.getTextPrimary(context),
                 fontSize: 14,
                 fontWeight: email.isRead ? FontWeight.w400 : FontWeight.w600,
               ),
@@ -73,8 +69,8 @@ class InboxListItem extends StatelessWidget {
             // Row 3: Preview
             Text(
               email.preview,
-              style: const TextStyle(
-                color: AppColors.textSecondary,
+              style: TextStyle(
+                color: AppColors.getTextSecondary(context),
                 fontSize: 13,
                 height: 1.4,
               ),

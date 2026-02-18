@@ -12,13 +12,13 @@ class PriorityChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: _backgroundColor,
+        color: AppColors.getPriorityBg(context, priority),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
         _label,
         style: TextStyle(
-          color: _textColor,
+          color: AppColors.getPriorityText(context, priority),
           fontSize: 11,
           fontWeight: FontWeight.w700,
           letterSpacing: 0.5,
@@ -37,32 +37,6 @@ class PriorityChip extends StatelessWidget {
         return 'LOW';
       case Priority.action:
         return 'ACTION';
-    }
-  }
-
-  Color get _backgroundColor {
-    switch (priority) {
-      case Priority.urgent:
-        return AppColors.chipUrgentBg;
-      case Priority.important:
-        return AppColors.chipImportantBg;
-      case Priority.low:
-        return AppColors.chipLowBg;
-      case Priority.action:
-        return AppColors.chipActionBg;
-    }
-  }
-
-  Color get _textColor {
-    switch (priority) {
-      case Priority.urgent:
-        return AppColors.chipUrgentText;
-      case Priority.important:
-        return AppColors.chipImportantText;
-      case Priority.low:
-        return AppColors.chipLowText;
-      case Priority.action:
-        return AppColors.chipActionText;
     }
   }
 }

@@ -6,23 +6,33 @@ class BottomNav extends StatelessWidget {
   final int currentIndex;
   final Function(int) onTap;
 
-  const BottomNav({
-    Key? key,
-    required this.currentIndex,
-    required this.onTap,
-  }) : super(key: key);
+  const BottomNav({Key? key, required this.currentIndex, required this.onTap})
+    : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    final isDark = AppColors.isDark(context);
+
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.8),
-        border: const Border(
+        color: isDark
+            ? AppColors.darkSurface.withOpacity(0.9)
+            : Colors.white.withOpacity(0.9),
+        border: Border(
           top: BorderSide(
-            color: Color(0xFFF1F5F9),
+            color: isDark
+                ? Colors.white.withOpacity(0.1)
+                : const Color(0xFFF1F5F9),
             width: 1,
           ),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, -2),
+          ),
+        ],
       ),
       child: ClipRect(
         child: BackdropFilter(
@@ -30,15 +40,32 @@ class BottomNav extends StatelessWidget {
           child: SafeArea(
             top: false,
             child: Container(
-              height: 80,
-              padding: const EdgeInsets.symmetric(horizontal: 24),
+              height: 70,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _buildNavItem(0, Icons.mail_rounded, 'INBOX'),
-                  _buildNavItem(1, Icons.grid_view_rounded, 'BUCKETS'),
-                  _buildNavItem(2, Icons.settings_rounded, 'SETTINGS'),
-                  _buildNavItem(3, Icons.account_circle_rounded, 'PROFILE'),
+                  _buildNavItem(
+                    context,
+                    0,
+                    Icons.mail_rounded,
+                    Icons.mail_outline_rounded,
+                    'INBOX',
+                  ),
+                  _buildNavItem(
+                    context,
+                    1,
+                    Icons.grid_view_rounded,
+                    Icons.grid_view_outlined,
+                    'BUCKETS',
+                  ),
+                  _buildNavItem(
+                    context,
+                    2,
+                    Icons.person_rounded,
+                    Icons.person_outline_rounded,
+                    'PROFILE',
+                  ),
                 ],
               ),
             ),
@@ -48,29 +75,45 @@ class BottomNav extends StatelessWidget {
     );
   }
 
-  Widget _buildNavItem(int index, IconData icon, String label) {
+  Widget _buildNavItem(
+    BuildContext context,
+    int index,
+    IconData activeIcon,
+    IconData inactiveIcon,
+    String label,
+  ) {
     final isSelected = index == currentIndex;
+    final isDark = AppColors.isDark(context);
+    final inactiveColor = isDark ? Colors.white54 : const Color(0xFFCBD5E1);
+
     return GestureDetector(
       onTap: () => onTap(index),
       behavior: HitTestBehavior.opaque,
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppColors.primaryBlue.withOpacity(0.1)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              icon,
-              color: isSelected ? AppColors.primaryBlue : const Color(0xFFCBD5E1),
-              size: 28,
+              isSelected ? activeIcon : inactiveIcon,
+              color: isSelected ? AppColors.primaryBlue : inactiveColor,
+              size: 24,
             ),
             const SizedBox(height: 4),
             Text(
               label,
               style: TextStyle(
-                color: isSelected ? AppColors.primaryBlue : const Color(0xFFCBD5E1),
-                fontSize: 10,
-                fontWeight: FontWeight.w800,
+                color: isSelected ? AppColors.primaryBlue : inactiveColor,
+                fontSize: 9,
+                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
                 letterSpacing: -0.2,
               ),
             ),

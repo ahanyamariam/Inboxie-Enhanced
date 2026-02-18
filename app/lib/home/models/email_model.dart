@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:app/core/theme/app_colors.dart';
 
 enum Priority { urgent, important, low, action }
 
 enum ActionType { directQuestion, deadline, waitingReply, billing, none }
-
 
 class EmailModel {
   final String id;
