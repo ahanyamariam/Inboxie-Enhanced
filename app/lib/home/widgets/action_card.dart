@@ -7,8 +7,7 @@ class ActionCard extends StatelessWidget {
   final EmailModel email;
   final VoidCallback? onTap;
 
-  const ActionCard({Key? key, required this.email, this.onTap})
-    : super(key: key);
+  const ActionCard({super.key, required this.email, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -26,7 +25,7 @@ class ActionCard extends StatelessWidget {
               ? null
               : [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.06),
+                    color: Colors.black.withValues(alpha: 0.06),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),

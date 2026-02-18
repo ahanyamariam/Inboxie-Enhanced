@@ -45,7 +45,7 @@ class ProfileHeader extends StatelessWidget {
               child: ClipPath(
                 clipper: _HeaderRibbonClipper(offset: 0, thickness: 80),
                 child: Container(
-                  color: AppColors.waveYellowLight.withOpacity(0.4),
+                  color: AppColors.waveYellowLight.withValues(alpha: 0.4),
                 ),
               ),
             ),
@@ -59,7 +59,7 @@ class ProfileHeader extends StatelessWidget {
               child: ClipPath(
                 clipper: _HeaderRibbonClipper(offset: 30, thickness: 80),
                 child: Container(
-                  color: AppColors.waveYellowMedium.withOpacity(0.6),
+                  color: AppColors.waveYellowMedium.withValues(alpha: 0.6),
                 ),
               ),
             ),
@@ -86,7 +86,7 @@ class ProfileHeader extends StatelessWidget {
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: AppColors.primaryBlue.withOpacity(0.2),
+                          color: AppColors.primaryBlue.withValues(alpha: 0.2),
                           blurRadius: 15,
                           offset: const Offset(0, 8),
                         ),
@@ -141,8 +141,8 @@ class ProfileHeader extends StatelessWidget {
                     ),
                     decoration: BoxDecoration(
                       color: isConnected
-                          ? AppColors.success.withOpacity(0.1)
-                          : AppColors.error.withOpacity(0.1),
+                          ? AppColors.success.withValues(alpha: 0.1)
+                          : AppColors.error.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(
                         12,
                       ), // Slightly squarer

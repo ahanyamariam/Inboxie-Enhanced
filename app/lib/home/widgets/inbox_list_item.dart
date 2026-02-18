@@ -7,8 +7,7 @@ class InboxListItem extends StatelessWidget {
   final EmailModel email;
   final VoidCallback? onTap;
 
-  const InboxListItem({Key? key, required this.email, this.onTap})
-    : super(key: key);
+  const InboxListItem({super.key, required this.email, this.onTap});
 
   @override
   Widget build(BuildContext context) {

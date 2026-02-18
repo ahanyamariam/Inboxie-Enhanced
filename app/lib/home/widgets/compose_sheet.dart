@@ -16,12 +16,12 @@ class ComposeSheet extends StatefulWidget {
   final Function(String to, String subject, String body) onSend;
 
   const ComposeSheet({
-    Key? key,
+    super.key,
     required this.mode,
     this.replyTo,
     this.threadId,
     required this.onSend,
-  }) : super(key: key);
+  });
 
   @override
   State<ComposeSheet> createState() => _ComposeSheetState();

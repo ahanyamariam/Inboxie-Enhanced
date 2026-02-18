@@ -9,12 +9,12 @@ class HeaderBanner extends StatelessWidget {
   final VoidCallback? onProfileTap;
 
   const HeaderBanner({
-    Key? key,
+    super.key,
     required this.selectedTabIndex,
     required this.onTabSelected,
     this.onSearchTap,
     this.onProfileTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -29,7 +29,7 @@ class HeaderBanner extends StatelessWidget {
             ? null
             : [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withValues(alpha: 0.05),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),
@@ -136,7 +136,7 @@ class HeaderBanner extends StatelessWidget {
                               width: 40,
                               height: 40,
                               decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.5),
+                                color: Colors.white.withValues(alpha: 0.5),
                                 shape: BoxShape.circle,
                               ),
                               child: const Icon(

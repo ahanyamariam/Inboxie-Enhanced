@@ -5,7 +5,7 @@ import 'package:app/home/models/email_model.dart';
 class PriorityChip extends StatelessWidget {
   final Priority priority;
 
-  const PriorityChip({Key? key, required this.priority}) : super(key: key);
+  const PriorityChip({super.key, required this.priority});
 
   @override
   Widget build(BuildContext context) {

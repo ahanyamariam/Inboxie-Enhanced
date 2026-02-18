@@ -147,14 +147,14 @@ class _UsageStatsScreenState extends State<UsageStatsScreen> {
         gradient: LinearGradient(
           colors: [
             AppColors.primaryBlue,
-            AppColors.primaryBlue.withOpacity(0.8),
+            AppColors.primaryBlue.withValues(alpha: 0.8),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primaryBlue.withOpacity(0.3),
+            color: AppColors.primaryBlue.withValues(alpha: 0.3),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),
@@ -165,7 +165,7 @@ class _UsageStatsScreenState extends State<UsageStatsScreen> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
+              color: Colors.white.withValues(alpha: 0.2),
               shape: BoxShape.circle,
             ),
             child: const Icon(
@@ -189,7 +189,7 @@ class _UsageStatsScreenState extends State<UsageStatsScreen> {
             'Saved with Inboxie AI',
             style: TextStyle(
               fontSize: 14,
-              color: Colors.white.withOpacity(0.8),
+              color: Colors.white.withValues(alpha: 0.8),
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -214,7 +214,7 @@ class _UsageStatsScreenState extends State<UsageStatsScreen> {
             ? null
             : [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.04),
+                  color: Colors.black.withValues(alpha: 0.04),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),
@@ -226,7 +226,7 @@ class _UsageStatsScreenState extends State<UsageStatsScreen> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(icon, color: color, size: 20),
@@ -266,8 +266,8 @@ class _UsageStatsScreenState extends State<UsageStatsScreen> {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: AppColors.isDark(context)
-              ? Colors.white.withOpacity(0.05)
-              : Colors.grey.withOpacity(0.1),
+              ? Colors.white.withValues(alpha: 0.05)
+              : Colors.grey.withValues(alpha: 0.1),
         ),
       ),
       child: Row(
@@ -275,7 +275,7 @@ class _UsageStatsScreenState extends State<UsageStatsScreen> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(icon, color: color, size: 20),

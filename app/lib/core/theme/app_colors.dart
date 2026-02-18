@@ -77,12 +77,12 @@ class AppColors {
     return (Theme.of(context).brightness == Brightness.dark
             ? darkTextSecondary
             : textSecondary)
-        .withOpacity(0.6);
+        .withValues(alpha: 0.6);
   }
 
   static Color getDivider(BuildContext context) {
     return Theme.of(context).brightness == Brightness.dark
-        ? Colors.white.withOpacity(0.1)
+        ? Colors.white.withValues(alpha: 0.1)
         : const Color(0xFFE5E7EB);
   }
 
@@ -96,10 +96,10 @@ class AppColors {
       case 'urgent':
         return primaryBlue;
       case 'important':
-        return isDark ? primaryBlue.withOpacity(0.3) : const Color(0xFFFFF8E1);
+        return isDark ? primaryBlue.withValues(alpha: 0.3) : const Color(0xFFFFF8E1);
       case 'low':
         return isDark
-            ? Colors.white.withOpacity(0.05)
+            ? Colors.white.withValues(alpha: 0.05)
             : const Color(0xFFE3F2FD);
       case 'action':
         return primaryBlue;

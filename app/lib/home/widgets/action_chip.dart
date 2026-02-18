@@ -5,7 +5,7 @@ import 'package:app/home/models/email_model.dart';
 class ActionTypeChip extends StatelessWidget {
   final ActionType actionType;
 
-  const ActionTypeChip({Key? key, required this.actionType}) : super(key: key);
+  const ActionTypeChip({super.key, required this.actionType});
 
   @override
   Widget build(BuildContext context) {

@@ -74,10 +74,10 @@ class _BucketCustomizationScreenState extends State<BucketCustomizationScreen> {
             child: Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: AppColors.primaryBlue.withOpacity(0.1),
+                color: AppColors.primaryBlue.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: AppColors.primaryBlue.withOpacity(0.2),
+                  color: AppColors.primaryBlue.withValues(alpha: 0.2),
                 ),
               ),
               child: Row(
@@ -118,7 +118,7 @@ class _BucketCustomizationScreenState extends State<BucketCustomizationScreen> {
                     return Material(
                       elevation: 4,
                       borderRadius: BorderRadius.circular(12),
-                      shadowColor: AppColors.primaryBlue.withOpacity(0.3),
+                      shadowColor: AppColors.primaryBlue.withValues(alpha: 0.3),
                       child: child,
                     );
                   },
@@ -150,7 +150,7 @@ class _BucketCustomizationScreenState extends State<BucketCustomizationScreen> {
               color: AppColors.getSurface(context),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withValues(alpha: 0.1),
                   blurRadius: 10,
                   offset: const Offset(0, -2),
                 ),
@@ -197,9 +197,9 @@ class _BucketCustomizationScreenState extends State<BucketCustomizationScreen> {
             margin: const EdgeInsets.only(right: 8),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: AppColors.primaryBlue.withOpacity(0.1),
+              color: AppColors.primaryBlue.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.primaryBlue.withOpacity(0.3)),
+              border: Border.all(color: AppColors.primaryBlue.withValues(alpha: 0.3)),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -340,18 +340,19 @@ class _BucketCustomizationScreenState extends State<BucketCustomizationScreen> {
                     _triggerHaptic();
                     await _storage.updateBucketIcon(bucket.id, iconName);
                     _loadConfig();
+                    if (!context.mounted) return;
                     Navigator.pop(context);
                   },
                   child: Container(
                     decoration: BoxDecoration(
                       color: isSelected
                           ? AppColors.primaryBlue
-                          : AppColors.primaryBlue.withOpacity(0.1),
+                          : AppColors.primaryBlue.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: isSelected
                             ? AppColors.primaryBlue
-                            : AppColors.primaryBlue.withOpacity(0.3),
+                            : AppColors.primaryBlue.withValues(alpha: 0.3),
                         width: isSelected ? 2 : 1,
                       ),
                     ),
@@ -402,6 +403,7 @@ class _BucketCustomizationScreenState extends State<BucketCustomizationScreen> {
             onPressed: () async {
               await _storage.resetBucketConfig();
               _loadConfig();
+              if (!context.mounted) return;
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -449,7 +451,7 @@ class _BucketTile extends StatelessWidget {
             ? null
             : [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.04),
+                  color: Colors.black.withValues(alpha: 0.04),
                   blurRadius: 10,
                   offset: const Offset(0, 2),
                 ),
@@ -475,8 +477,8 @@ class _BucketTile extends StatelessWidget {
                 height: 40,
                 decoration: BoxDecoration(
                   color: bucket.isVisible
-                      ? AppColors.primaryBlue.withOpacity(0.1)
-                      : Colors.grey.withOpacity(0.1),
+                      ? AppColors.primaryBlue.withValues(alpha: 0.1)
+                      : Colors.grey.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
@@ -505,7 +507,7 @@ class _BucketTile extends StatelessWidget {
             fontSize: 12,
             color: bucket.isVisible
                 ? AppColors.getTextSecondary(context)
-                : Colors.red.withOpacity(0.7),
+                : Colors.red.withValues(alpha: 0.7),
           ),
         ),
         trailing: Row(
@@ -522,7 +524,7 @@ class _BucketTile extends StatelessWidget {
             Switch.adaptive(
               value: bucket.isVisible,
               onChanged: (_) => onToggleVisibility(),
-              activeColor: AppColors.primaryBlue,
+              activeTrackColor: AppColors.primaryBlue,
             ),
           ],
         ),

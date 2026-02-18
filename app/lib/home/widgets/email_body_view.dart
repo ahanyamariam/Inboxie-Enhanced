@@ -7,11 +7,11 @@ class EmailBodyView extends StatelessWidget {
   final String snippet;
 
   const EmailBodyView({
-    Key? key,
+    super.key,
     required this.plainText,
     required this.htmlContent,
     required this.snippet,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

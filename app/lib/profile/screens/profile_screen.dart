@@ -474,7 +474,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           SettingsTile(
                             icon: Icons.grid_view_rounded,
                             iconColor: Colors.blueAccent,
-                            iconBackgroundColor: Colors.blueAccent.withOpacity(
+                            iconBackgroundColor: Colors.blueAccent.withValues(alpha: 
                               0.1,
                             ),
                             title: 'Inbox Buckets',
@@ -495,7 +495,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             icon: Icons.label_rounded,
                             iconColor: Colors.orangeAccent,
                             iconBackgroundColor: Colors.orangeAccent
-                                .withOpacity(0.1),
+                                .withValues(alpha: 0.1),
                             title: 'Smart Labels',
                             subtitle: 'Customize priority & action tags',
                             showArrow: true,
@@ -522,7 +522,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             icon: Icons.insights_rounded,
                             iconColor: Colors.purpleAccent,
                             iconBackgroundColor: Colors.purpleAccent
-                                .withOpacity(0.1),
+                                .withValues(alpha: 0.1),
                             title: 'Usage Stats',
                             subtitle: 'See how much time you\'ve saved',
                             showArrow: true,
@@ -539,7 +539,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           SettingsSelectorTile(
                             icon: Icons.speed_rounded,
                             iconColor: Colors.orange,
-                            iconBackgroundColor: Colors.orange.withOpacity(0.1),
+                            iconBackgroundColor: Colors.orange.withValues(alpha: 0.1),
                             title: 'Priority Sensitivity',
                             subtitle: 'How aggressively to flag urgent emails',
                             value: _settings.prioritySensitivityLabel,
@@ -548,7 +548,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           SettingsToggleTile(
                             icon: Icons.psychology_rounded,
                             iconColor: Colors.purple,
-                            iconBackgroundColor: Colors.purple.withOpacity(0.1),
+                            iconBackgroundColor: Colors.purple.withValues(alpha: 0.1),
                             title: 'Smart Detection',
                             subtitle: 'AI-powered email analysis',
                             value: _settings.smartDetectionEnabled,
@@ -569,7 +569,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           SettingsToggleTile(
                             icon: Icons.newspaper_rounded,
                             iconColor: Colors.blue,
-                            iconBackgroundColor: Colors.blue.withOpacity(0.1),
+                            iconBackgroundColor: Colors.blue.withValues(alpha: 0.1),
                             title: 'Newsletter Digest',
                             subtitle: 'Bundle newsletters together',
                             value: _settings.newsletterDigestEnabled,
@@ -582,7 +582,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           SettingsSelectorTile(
                             icon: Icons.sync_rounded,
                             iconColor: Colors.teal,
-                            iconBackgroundColor: Colors.teal.withOpacity(0.1),
+                            iconBackgroundColor: Colors.teal.withValues(alpha: 0.1),
                             title: 'Sync Frequency',
                             subtitle: 'How often to check for new emails',
                             value: _settings.syncFrequencyLabel,
@@ -599,7 +599,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           SettingsSelectorTile(
                             icon: Icons.shield_rounded,
                             iconColor: Colors.green,
-                            iconBackgroundColor: Colors.green.withOpacity(0.1),
+                            iconBackgroundColor: Colors.green.withValues(alpha: 0.1),
                             title: 'Privacy Mode',
                             subtitle: _settings.privacyModeDescription,
                             value: _settings.privacyModeLabel,
@@ -617,7 +617,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             icon: Icons.star_rounded,
                             iconColor: AppColors.accentYellow,
                             iconBackgroundColor: AppColors.accentYellow
-                                .withOpacity(0.15),
+                                .withValues(alpha: 0.15),
                             title: 'VIP Senders',
                             subtitle: 'Always prioritize these senders',
                             count: _settings.vipSenders.length,
@@ -635,7 +635,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           SettingsCountTile(
                             icon: Icons.volume_off_rounded,
                             iconColor: Colors.grey,
-                            iconBackgroundColor: Colors.grey.withOpacity(0.1),
+                            iconBackgroundColor: Colors.grey.withValues(alpha: 0.1),
                             title: 'Muted Senders',
                             subtitle: 'Route to Low Value bucket',
                             count: _settings.mutedSenders.length,
@@ -661,7 +661,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           SettingsSelectorTile(
                             icon: Icons.palette_rounded,
                             iconColor: Colors.indigo,
-                            iconBackgroundColor: Colors.indigo.withOpacity(0.1),
+                            iconBackgroundColor: Colors.indigo.withValues(alpha: 0.1),
                             title: 'Theme',
                             subtitle: 'App appearance',
                             value: _settings.themeModeLabel,
@@ -670,7 +670,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           SettingsTile(
                             icon: Icons.notifications_active_rounded,
                             iconColor: Colors.pink,
-                            iconBackgroundColor: Colors.pink.withOpacity(0.1),
+                            iconBackgroundColor: Colors.pink.withValues(alpha: 0.1),
                             title: 'Notifications',
                             subtitle: 'Manage alerts & quiet hours',
                             showArrow: true,
@@ -688,7 +688,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           SettingsSelectorTile(
                             icon: Icons.tab_rounded,
                             iconColor: Colors.cyan,
-                            iconBackgroundColor: Colors.cyan.withOpacity(0.1),
+                            iconBackgroundColor: Colors.cyan.withValues(alpha: 0.1),
                             title: 'Default Tab',
                             subtitle: 'Tab shown when app opens',
                             value: _settings.defaultTabLabel,
@@ -697,7 +697,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           SettingsToggleTile(
                             icon: Icons.vibration_rounded,
                             iconColor: Colors.pink,
-                            iconBackgroundColor: Colors.pink.withOpacity(0.1),
+                            iconBackgroundColor: Colors.pink.withValues(alpha: 0.1),
                             title: 'Haptic Feedback',
                             subtitle: 'Vibration on actions',
                             value: _settings.hapticFeedbackEnabled,
@@ -718,7 +718,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           SettingsTile(
                             icon: Icons.privacy_tip_outlined,
                             iconColor: Colors.blueGrey,
-                            iconBackgroundColor: Colors.blueGrey.withOpacity(
+                            iconBackgroundColor: Colors.blueGrey.withValues(alpha: 
                               0.1,
                             ),
                             title: 'Privacy Policy',
@@ -731,7 +731,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           SettingsTile(
                             icon: Icons.description_outlined,
                             iconColor: Colors.blueGrey,
-                            iconBackgroundColor: Colors.blueGrey.withOpacity(
+                            iconBackgroundColor: Colors.blueGrey.withValues(alpha: 
                               0.1,
                             ),
                             title: 'Terms of Service',
@@ -752,7 +752,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           SettingsTile(
                             icon: Icons.star_rate_rounded,
                             iconColor: Colors.amber,
-                            iconBackgroundColor: Colors.amber.withOpacity(0.1),
+                            iconBackgroundColor: Colors.amber.withValues(alpha: 0.1),
                             title: 'Rate Inboxie',
                             subtitle: 'Love the app? Let us know!',
                             showArrow: true,
@@ -761,7 +761,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           SettingsTile(
                             icon: Icons.feedback_rounded,
                             iconColor: Colors.teal,
-                            iconBackgroundColor: Colors.teal.withOpacity(0.1),
+                            iconBackgroundColor: Colors.teal.withValues(alpha: 0.1),
                             title: 'Send Feedback',
                             subtitle: 'Report a bug or suggest features',
                             showArrow: true,
@@ -797,7 +797,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           SettingsTile(
                             icon: Icons.cleaning_services_rounded,
                             iconColor: Colors.orange,
-                            iconBackgroundColor: Colors.orange.withOpacity(0.1),
+                            iconBackgroundColor: Colors.orange.withValues(alpha: 0.1),
                             title: 'Clear Local Data',
                             subtitle: 'Delete cached emails',
                             showArrow: true,
@@ -1027,7 +1027,7 @@ class _SelectorSheet<T> extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 8),
               child: Material(
                 color: isSelected
-                    ? AppColors.primaryBlue.withOpacity(0.1)
+                    ? AppColors.primaryBlue.withValues(alpha: 0.1)
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(12),
                 child: InkWell(
@@ -1045,7 +1045,7 @@ class _SelectorSheet<T> extends StatelessWidget {
                             ? AppColors.primaryBlue
                             : (isDark
                                   ? Colors.white24
-                                  : Colors.grey.withOpacity(0.2)),
+                                  : Colors.grey.withValues(alpha: 0.2)),
                         width: isSelected ? 2 : 1,
                       ),
                     ),
@@ -1058,10 +1058,10 @@ class _SelectorSheet<T> extends StatelessWidget {
                             height: 40,
                             decoration: BoxDecoration(
                               color: isSelected
-                                  ? AppColors.primaryBlue.withOpacity(0.1)
+                                  ? AppColors.primaryBlue.withValues(alpha: 0.1)
                                   : (isDark
                                         ? Colors.white12
-                                        : Colors.grey.withOpacity(0.1)),
+                                        : Colors.grey.withValues(alpha: 0.1)),
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Icon(

@@ -7,11 +7,11 @@ class SenderListTile extends StatelessWidget {
   final bool isVip;
 
   const SenderListTile({
-    Key? key,
+    super.key,
     required this.email,
     required this.onRemove,
     this.isVip = true,
-  }) : super(key: key);
+  });
 
   String get _initials {
     final parts = email.split('@').first;

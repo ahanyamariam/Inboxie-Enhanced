@@ -6,8 +6,7 @@ class RecentEmailItem extends StatelessWidget {
   final EmailModel email;
   final VoidCallback? onTap;
 
-  const RecentEmailItem({Key? key, required this.email, this.onTap})
-    : super(key: key);
+  const RecentEmailItem({super.key, required this.email, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -25,7 +24,7 @@ class RecentEmailItem extends StatelessWidget {
               ? null
               : [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.02),
+                    color: Colors.black.withValues(alpha: 0.02),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),

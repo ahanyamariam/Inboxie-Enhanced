@@ -6,10 +6,10 @@ class FilterTabs extends StatelessWidget {
   final Function(int) onTabSelected;
 
   const FilterTabs({
-    Key? key,
+    super.key,
     required this.selectedIndex,
     required this.onTabSelected,
-  }) : super(key: key);
+  });
 
   static const List<String> tabs = [
     'All',

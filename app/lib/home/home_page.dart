@@ -18,12 +18,12 @@ class HomeScreen extends StatefulWidget {
   final String? userPhotoUrl;
 
   const HomeScreen({
-    Key? key,
+    super.key,
     required this.accessToken,
     required this.userEmail,
     this.userDisplayName,
     this.userPhotoUrl,
-  }) : super(key: key);
+  });
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -233,8 +233,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 return ListTile(
                   leading: Radio<int>(
                     value: count,
+                    // ignore: deprecated_member_use
                     groupValue: _maxResults,
-                    activeColor: AppColors.primaryBlue,
+                    fillColor: WidgetStateProperty.resolveWith((states) {
+                      if (states.contains(WidgetState.selected)) {
+                        return AppColors.primaryBlue;
+                      }
+                      return null;
+                    }),
+                    // ignore: deprecated_member_use
                     onChanged: (value) {
                       setState(() {
                         _maxResults = value!;
@@ -503,7 +510,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: AppColors.primaryBlue.withOpacity(0.1),
+                color: AppColors.primaryBlue.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
