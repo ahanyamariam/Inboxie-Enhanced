@@ -3,6 +3,8 @@ import 'package:app/core/theme/app_colors.dart';
 import 'package:app/services/auth_service.dart';
 import 'package:app/features/splash/presentation/widgets/wave_clippers.dart';
 import 'package:app/features/home/home_page.dart';
+import 'package:app/services/storage_service.dart';
+
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -98,7 +100,7 @@ class _AuthScreenState extends State<AuthScreen>
     }
   }
 
-  Future<void> _signInWithGoogle() async {
+    Future<void> _signInWithGoogle() async {
     setState(() {
       _isLoading = true;
       _error = null;
@@ -111,6 +113,13 @@ class _AuthScreenState extends State<AuthScreen>
         setState(() => _isLoading = false);
         return;
       }
+
+      // Save user to SQLite
+      await StorageService().saveUserProfile(
+        email: result.email,
+        displayName: result.displayName,
+        photoUrl: result.photoUrl,
+      );
 
       if (mounted) {
         Navigator.pushAndRemoveUntil(
@@ -129,7 +138,7 @@ class _AuthScreenState extends State<AuthScreen>
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
