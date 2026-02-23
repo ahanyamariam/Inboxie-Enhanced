@@ -91,7 +91,7 @@ class SettingsTile extends StatelessWidget {
                 ),
               ),
               
-              ?trailing,
+              if (trailing != null) trailing!,
               
               if (showArrow && trailing == null)
                 Icon(

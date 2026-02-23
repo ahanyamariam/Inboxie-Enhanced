@@ -57,8 +57,8 @@ class _GetStartedScreenState extends State<GetStartedScreen>
     Navigator.push(
       context,
       PageRouteBuilder(
-        pageBuilder: (_, _, _) => const AuthScreen(),
-        transitionsBuilder: (_, animation, _, child) {
+        pageBuilder: (context, _, __) => const AuthScreen(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
           // Simple fade transition
           return FadeTransition(
             opacity: CurvedAnimation(
