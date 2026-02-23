@@ -1,703 +1,573 @@
 import 'dart:convert';
+import 'package:sqflite/sqflite.dart';
+import 'package:path/path.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:app/models/user_settings_model.dart';
+import 'package:app/models/usage_stats_model.dart';
+import 'package:app/models/notification_settings_model.dart';
 import 'package:app/models/label_config_model.dart';
 import 'package:app/models/bucket_config_model.dart';
-import 'package:app/models/notification_settings_model.dart';
-import 'package:app/models/usage_stats_model.dart';
+import 'package:app/services/intelligence_service.dart';
 
 class StorageService {
-  // ==================== EXISTING KEYS ====================
-  static const String _keyPrioritySensitivity = 'priority_sensitivity';
-  static const String _keySmartDetection = 'smart_detection';
-  static const String _keyPrivacyMode = 'privacy_mode';
-  static const String _keyNewsletterDigest = 'newsletter_digest';
-  static const String _keyAutoArchive = 'auto_archive';
-  static const String _keySyncFrequency = 'sync_frequency';
-  static const String _keyVipSenders = 'vip_senders';
-  static const String _keyMutedSenders = 'muted_senders';
-  static const String _keyThemeMode = 'theme_mode';
-  static const String _keyDefaultTab = 'default_tab';
-  static const String _keyHapticFeedback = 'haptic_feedback';
-
-  // ==================== NEW KEYS FOR PHASE 3 ====================
-  static const String _keyLabelConfig = 'label_config';
-  static const String _keyBucketConfig = 'bucket_config';
-  static const String _keyNotificationSettings = 'notification_settings';
-  static const String _keyUsageStats = 'usage_stats';
-  static const String _keyRateAppLastPrompt = 'rate_app_last_prompt';
-  static const String _keyRateAppRated = 'rate_app_rated';
-  static const String _keyRateAppDismissCount = 'rate_app_dismiss_count';
-  static const String _keyRateAppActionCount = 'rate_app_action_count';
-
-  SharedPreferences? _prefs;
-
-  // Singleton pattern
   static final StorageService _instance = StorageService._internal();
   factory StorageService() => _instance;
   StorageService._internal();
 
-  /// Initialize SharedPreferences - call this once at app startup
+  Database? _database;
+  SharedPreferences? _prefs;
+
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
+    await database; // Trigger DB init
   }
 
-  /// Get SharedPreferences instance
-  SharedPreferences get prefs {
-    if (_prefs == null) {
-      throw Exception('StorageService not initialized. Call init() first.');
-    }
-    return _prefs!;
+  Future<Database> get database async {
+    if (_database != null) return _database!;
+    _database = await _initDatabase();
+    return _database!;
   }
 
-  // ==================== PRIORITY SENSITIVITY ====================
+  Future<Database> _initDatabase() async {
+    final dbPath = await getDatabasesPath();
+    final path = join(dbPath, 'inboxie.db');
 
-  Future<void> setPrioritySensitivity(PrioritySensitivity value) async {
-    await prefs.setString(_keyPrioritySensitivity, value.name);
-  }
+    print('═══════════════════════════════════════');
+    print('DATABASE PATH: $path');
+    print('═══════════════════════════════════════');
 
-  PrioritySensitivity getPrioritySensitivity() {
-    final value = prefs.getString(_keyPrioritySensitivity);
-    if (value == null) return PrioritySensitivity.normal;
-    return PrioritySensitivity.values.firstWhere(
-      (e) => e.name == value,
-      orElse: () => PrioritySensitivity.normal,
+    return await openDatabase(
+      path,
+      version: 3,
+      onCreate: (db, version) async {
+        await db.execute('''
+          CREATE TABLE emails (
+            id TEXT PRIMARY KEY,
+            threadId TEXT,
+            senderName TEXT,
+            senderEmail TEXT,
+            subject TEXT,
+            snippet TEXT,
+            timestamp INTEGER,
+            bucket TEXT DEFAULT 'low',
+            priorityScore INTEGER DEFAULT 0,
+            priorityLabel TEXT DEFAULT 'low',
+            isActionable INTEGER DEFAULT 0,
+            isRead INTEGER DEFAULT 0,
+            status TEXT DEFAULT 'open',
+            syncedAt INTEGER
+          )
+        ''');
+
+        await db.execute('''
+          CREATE TABLE user_profile (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT,
+            displayName TEXT,
+            photoUrl TEXT,
+            lastSyncTimestamp INTEGER
+          )
+        ''');
+
+        print('Database tables created (v2)!');
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await db.execute("ALTER TABLE emails ADD COLUMN priorityLabel TEXT");
+          print('Migrated DB to v2: added priorityLabel column');
+
+          // Backfill: re-score existing emails with the new engine
+          final vipSenders = _prefs?.getStringList('vip_senders') ?? [];
+          final existingEmails = await db.query('emails');
+          for (var email in existingEmails) {
+            final analysis = IntelligenceService.analyze(
+              subject: (email['subject'] as String?) ?? '',
+              snippet: (email['snippet'] as String?) ?? '',
+              from: (email['senderEmail'] as String?) ?? '',
+              vipSenders: vipSenders,
+              emailTimestamp: (email['timestamp'] as int?) ?? 0,
+            );
+            await db.update(
+              'emails',
+              {
+                'priorityScore': analysis['priorityScore'],
+                'priorityLabel': analysis['priorityLabel'],
+                'bucket': analysis['bucket'],
+                'isActionable': analysis['isActionable'] ? 1 : 0,
+              },
+              where: 'id = ?',
+              whereArgs: [email['id']],
+            );
+          }
+          print('Backfilled ${existingEmails.length} emails with new priority scores');
+        }
+        if (oldVersion < 3) {
+          // v3: Re-score all emails with the enhanced priority engine
+          final vipSenders = _prefs?.getStringList('vip_senders') ?? [];
+          final rows = await db.query('emails');
+          for (var email in rows) {
+            final analysis = IntelligenceService.analyze(
+              subject: (email['subject'] as String?) ?? '',
+              snippet: (email['snippet'] as String?) ?? '',
+              from: (email['senderEmail'] as String?) ?? '',
+              vipSenders: vipSenders,
+              emailTimestamp: (email['timestamp'] as int?) ?? 0,
+            );
+            await db.update(
+              'emails',
+              {
+                'priorityScore': analysis['priorityScore'],
+                'priorityLabel': analysis['priorityLabel'],
+                'bucket': analysis['bucket'],
+                'isActionable': analysis['isActionable'] ? 1 : 0,
+              },
+              where: 'id = ?',
+              whereArgs: [email['id']],
+            );
+          }
+          print('v3 migration: Re-scored ${rows.length} emails with new priority engine');
+        }
+      },
     );
   }
 
-  // ==================== SMART DETECTION ====================
+  // ==========================================
+  // USER METHODS
+  // ==========================================
 
-  Future<void> setSmartDetection(bool value) async {
-    await prefs.setBool(_keySmartDetection, value);
+  Future<void> saveUserProfile({
+    required String email,
+    String? displayName,
+    String? photoUrl,
+  }) async {
+    final db = await database;
+    await db.delete('user_profile');
+    await db.insert('user_profile', {
+      'email': email,
+      'displayName': displayName,
+      'photoUrl': photoUrl,
+      'lastSyncTimestamp': DateTime.now().millisecondsSinceEpoch,
+    });
   }
 
-  bool getSmartDetection() {
-    return prefs.getBool(_keySmartDetection) ?? true;
-  }
+  // ==========================================
+  // EMAIL SAVE METHODS
+  // ==========================================
 
-  // ==================== PRIVACY MODE ====================
-
-  Future<void> setPrivacyMode(PrivacyMode value) async {
-    await prefs.setString(_keyPrivacyMode, value.name);
-  }
-
-  PrivacyMode getPrivacyMode() {
-    final value = prefs.getString(_keyPrivacyMode);
-    if (value == null) return PrivacyMode.summary;
-    return PrivacyMode.values.firstWhere(
-      (e) => e.name == value,
-      orElse: () => PrivacyMode.summary,
+  Future<void> saveEmail(Map<String, dynamic> emailData) async {
+    final db = await database;
+    await db.insert(
+      'emails',
+      emailData,
+      conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
 
-  // ==================== NEWSLETTER DIGEST ====================
-
-  Future<void> setNewsletterDigest(bool value) async {
-    await prefs.setBool(_keyNewsletterDigest, value);
+  Future<void> saveEmails(List<Map<String, dynamic>> emails) async {
+    final db = await database;
+    final batch = db.batch();
+    for (var email in emails) {
+      batch.insert('emails', email, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+    await batch.commit(noResult: true);
+    print('Saved ${emails.length} emails to database');
   }
 
-  bool getNewsletterDigest() {
-    return prefs.getBool(_keyNewsletterDigest) ?? true;
-  }
+  // ==========================================
+  // EMAIL READ METHODS
+  // ==========================================
 
-  // ==================== AUTO ARCHIVE ====================
-
-  Future<void> setAutoArchive(bool value) async {
-    await prefs.setBool(_keyAutoArchive, value);
-  }
-
-  bool getAutoArchive() {
-    return prefs.getBool(_keyAutoArchive) ?? false;
-  }
-
-  // ==================== SYNC FREQUENCY ====================
-
-  Future<void> setSyncFrequency(SyncFrequency value) async {
-    await prefs.setString(_keySyncFrequency, value.name);
-  }
-
-  SyncFrequency getSyncFrequency() {
-    final value = prefs.getString(_keySyncFrequency);
-    if (value == null) return SyncFrequency.fifteenMin;
-    return SyncFrequency.values.firstWhere(
-      (e) => e.name == value,
-      orElse: () => SyncFrequency.fifteenMin,
+  Future<List<Map<String, dynamic>>> getAllEmails() async {
+    final db = await database;
+    return await db.query(
+      'emails',
+      orderBy: 'priorityScore DESC, timestamp DESC',
     );
   }
 
-  // ==================== VIP SENDERS ====================
-
-  Future<void> setVipSenders(List<String> senders) async {
-    await prefs.setStringList(_keyVipSenders, senders);
+  Future<List<Map<String, dynamic>>> getActionableEmails() async {
+    final db = await database;
+    return await db.query(
+      'emails',
+      where: 'isActionable = ? AND status = ?',
+      whereArgs: [1, 'open'],
+      orderBy: 'priorityScore DESC',
+    );
   }
 
-  List<String> getVipSenders() {
-    return prefs.getStringList(_keyVipSenders) ?? [];
+  Future<List<Map<String, dynamic>>> getEmailsByBucket(String bucket) async {
+    final db = await database;
+    return await db.query(
+      'emails',
+      where: 'bucket = ?',
+      whereArgs: [bucket],
+      orderBy: 'timestamp DESC',
+    );
   }
 
-  Future<void> addVipSender(String email) async {
-    final senders = getVipSenders();
-    if (!senders.contains(email.toLowerCase())) {
-      senders.add(email.toLowerCase());
-      await setVipSenders(senders);
-    }
+  Future<bool> emailExists(String id) async {
+    final db = await database;
+    final result = await db.query(
+      'emails',
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    return result.isNotEmpty;
   }
 
-  Future<void> removeVipSender(String email) async {
-    final senders = getVipSenders();
-    senders.remove(email.toLowerCase());
-    await setVipSenders(senders);
+  Future<int> getEmailCount() async {
+    final db = await database;
+    final result = await db.rawQuery('SELECT COUNT(*) as count FROM emails');
+    return result.first['count'] as int;
   }
 
-  bool isVipSender(String email) {
-    return getVipSenders().contains(email.toLowerCase());
+  // ==========================================
+  // EMAIL UPDATE METHODS
+  // ==========================================
+
+  Future<void> markAsRead(String id) async {
+    final db = await database;
+    await db.update('emails', {'isRead': 1}, where: 'id = ?', whereArgs: [id]);
   }
 
-  // ==================== MUTED SENDERS ====================
-
-  Future<void> setMutedSenders(List<String> senders) async {
-    await prefs.setStringList(_keyMutedSenders, senders);
+  Future<void> markAsDone(String id) async {
+    final db = await database;
+    await db.update('emails', {'status': 'done'}, where: 'id = ?', whereArgs: [id]);
   }
 
-  List<String> getMutedSenders() {
-    return prefs.getStringList(_keyMutedSenders) ?? [];
+  Future<void> updateBucket(String id, String newBucket) async {
+    final db = await database;
+    await db.update('emails', {'bucket': newBucket}, where: 'id = ?', whereArgs: [id]);
   }
 
-  Future<void> addMutedSender(String email) async {
-    final senders = getMutedSenders();
-    if (!senders.contains(email.toLowerCase())) {
-      senders.add(email.toLowerCase());
-      await setMutedSenders(senders);
-    }
+  // ==========================================
+  // CLEAR METHODS
+  // ==========================================
+
+  Future<void> clearAllEmails() async {
+    final db = await database;
+    await db.delete('emails');
+    print('All emails cleared');
   }
 
-  Future<void> removeMutedSender(String email) async {
-    final senders = getMutedSenders();
-    senders.remove(email.toLowerCase());
-    await setMutedSenders(senders);
+  Future<void> clearEmailCache() async {
+    await clearAllEmails();
   }
 
-  bool isMutedSender(String email) {
-    return getMutedSenders().contains(email.toLowerCase());
-  }
-
-  // ==================== THEME MODE ====================
-
-  Future<void> setThemeMode(String value) async {
-    await prefs.setString(_keyThemeMode, value);
-  }
+  // ==========================================
+  // SETTINGS & THEME (SharedPreferences)
+  // ==========================================
 
   String getThemeMode() {
-    return prefs.getString(_keyThemeMode) ?? 'system';
+    return _prefs?.getString('theme_mode') ?? 'system';
   }
 
-  // ==================== DEFAULT TAB ====================
-
-  Future<void> setDefaultTab(String value) async {
-    await prefs.setString(_keyDefaultTab, value);
+  Future<void> setThemeMode(String theme) async {
+    await _prefs?.setString('theme_mode', theme);
   }
-
-  String getDefaultTab() {
-    return prefs.getString(_keyDefaultTab) ?? 'action';
-  }
-
-  // ==================== HAPTIC FEEDBACK ====================
-
-  Future<void> setHapticFeedback(bool value) async {
-    await prefs.setBool(_keyHapticFeedback, value);
-  }
-
-  bool getHapticFeedback() {
-    return prefs.getBool(_keyHapticFeedback) ?? true;
-  }
-
-  // ==================== LOAD ALL SETTINGS ====================
 
   UserSettingsModel loadSettings({
-    String? uid,
     String? email,
     String? displayName,
     String? photoUrl,
   }) {
+    if (_prefs == null) return const UserSettingsModel();
+
     return UserSettingsModel(
-      uid: uid,
       email: email,
       displayName: displayName,
       photoUrl: photoUrl,
-      prioritySensitivity: getPrioritySensitivity(),
-      smartDetectionEnabled: getSmartDetection(),
-      privacyMode: getPrivacyMode(),
-      newsletterDigestEnabled: getNewsletterDigest(),
-      autoArchiveEnabled: getAutoArchive(),
-      syncFrequency: getSyncFrequency(),
-      vipSenders: getVipSenders(),
-      mutedSenders: getMutedSenders(),
-      themeMode: getThemeMode(),
-      defaultTab: getDefaultTab(),
-      hapticFeedbackEnabled: getHapticFeedback(),
+      prioritySensitivity: PrioritySensitivity.values[_prefs!.getInt('priority_sensitivity') ?? 1],
+      smartDetectionEnabled: _prefs!.getBool('smart_detection') ?? true,
+      privacyMode: PrivacyMode.values[_prefs!.getInt('privacy_mode') ?? 1],
+      newsletterDigestEnabled: _prefs!.getBool('newsletter_digest') ?? true,
+      syncFrequency: SyncFrequency.values[_prefs!.getInt('sync_frequency') ?? 1],
+      themeMode: _prefs!.getString('theme_mode') ?? 'system',
+      defaultTab: _prefs!.getString('default_tab') ?? 'action',
+      hapticFeedbackEnabled: _prefs!.getBool('haptic_feedback') ?? true,
+      vipSenders: _prefs!.getStringList('vip_senders') ?? [],
+      mutedSenders: _prefs!.getStringList('muted_senders') ?? [],
     );
   }
 
-  // ============================================================
-  // ==================== PHASE 3: LABEL CONFIG =================
-  // ============================================================
-
-  Future<void> setLabelConfig(LabelConfig config) async {
-    await prefs.setString(_keyLabelConfig, jsonEncode(config.toJson()));
+  Future<void> setPrioritySensitivity(PrioritySensitivity value) async {
+    await _prefs?.setInt('priority_sensitivity', value.index);
   }
 
-  LabelConfig getLabelConfig() {
-    final jsonString = prefs.getString(_keyLabelConfig);
-    if (jsonString == null) return const LabelConfig();
+  Future<void> setSmartDetection(bool value) async {
+    await _prefs?.setBool('smart_detection', value);
+  }
+
+  Future<void> setPrivacyMode(PrivacyMode value) async {
+    await _prefs?.setInt('privacy_mode', value.index);
+  }
+
+  Future<void> setNewsletterDigest(bool value) async {
+    await _prefs?.setBool('newsletter_digest', value);
+  }
+
+  Future<void> setSyncFrequency(SyncFrequency value) async {
+    await _prefs?.setInt('sync_frequency', value.index);
+  }
+
+  Future<void> setHapticFeedback(bool value) async {
+    await _prefs?.setBool('haptic_feedback', value);
+  }
+
+  Future<void> setDefaultTab(String value) async {
+    await _prefs?.setString('default_tab', value);
+  }
+
+  // ==========================================
+  // VIP & MUTED SENDERS
+  // ==========================================
+
+  List<String> getVipSenders() {
+    return _prefs?.getStringList('vip_senders') ?? [];
+  }
+
+  Future<void> addVipSender(String email) async {
+    final list = getVipSenders();
+    if (!list.contains(email)) {
+      list.add(email);
+      await _prefs?.setStringList('vip_senders', list);
+    }
+  }
+
+  Future<void> removeVipSender(String email) async {
+    final list = getVipSenders();
+    if (list.remove(email)) {
+      await _prefs?.setStringList('vip_senders', list);
+    }
+  }
+
+  List<String> getMutedSenders() {
+    return _prefs?.getStringList('muted_senders') ?? [];
+  }
+
+  Future<void> addMutedSender(String email) async {
+    final list = getMutedSenders();
+    if (!list.contains(email)) {
+      list.add(email);
+      await _prefs?.setStringList('muted_senders', list);
+    }
+  }
+
+  Future<void> removeMutedSender(String email) async {
+    final list = getMutedSenders();
+    if (list.remove(email)) {
+      await _prefs?.setStringList('muted_senders', list);
+    }
+  }
+
+  // ==========================================
+  // USAGE STATS
+  // ==========================================
+
+  UsageStats getUsageStats() {
+    final jsonStr = _prefs?.getString('usage_stats');
+    if (jsonStr == null) return const UsageStats();
     try {
-      return LabelConfig.fromJson(jsonDecode(jsonString));
+      return UsageStats.fromJson(json.decode(jsonStr));
     } catch (e) {
-      return const LabelConfig();
+      return const UsageStats();
     }
   }
 
-  Future<void> updatePriorityLabel(String priority, String newLabel) async {
-    final config = getLabelConfig();
-    LabelConfig updated;
-    switch (priority.toLowerCase()) {
-      case 'urgent':
-        updated = config.copyWith(urgentLabel: newLabel);
-        break;
-      case 'important':
-        updated = config.copyWith(importantLabel: newLabel);
-        break;
-      case 'low':
-        updated = config.copyWith(lowLabel: newLabel);
-        break;
-      default:
-        return;
-    }
-    await setLabelConfig(updated);
+  Future<void> saveUsageStats(UsageStats stats) async {
+    await _prefs?.setString('usage_stats', json.encode(stats.toJson()));
   }
 
-  Future<void> updateActionLabel(String action, String newLabel) async {
-    final config = getLabelConfig();
-    LabelConfig updated;
-    switch (action.toLowerCase()) {
-      case 'needs_reply':
-        updated = config.copyWith(needsReplyLabel: newLabel);
-        break;
-      case 'waiting':
-        updated = config.copyWith(waitingLabel: newLabel);
-        break;
-      case 'no_action':
-        updated = config.copyWith(noActionLabel: newLabel);
-        break;
-      default:
-        return;
-    }
-    await setLabelConfig(updated);
-  }
-
-  Future<void> updatePriorityColor(String priority, String hexColor) async {
-    final config = getLabelConfig();
-    LabelConfig updated;
-    switch (priority.toLowerCase()) {
-      case 'urgent':
-        updated = config.copyWith(urgentColor: hexColor);
-        break;
-      case 'important':
-        updated = config.copyWith(importantColor: hexColor);
-        break;
-      case 'low':
-        updated = config.copyWith(lowColor: hexColor);
-        break;
-      default:
-        return;
-    }
-    await setLabelConfig(updated);
-  }
-
-  Future<void> updateActionColor(String action, String hexColor) async {
-    final config = getLabelConfig();
-    LabelConfig updated;
-    switch (action.toLowerCase()) {
-      case 'needs_reply':
-        updated = config.copyWith(needsReplyColor: hexColor);
-        break;
-      case 'waiting':
-        updated = config.copyWith(waitingColor: hexColor);
-        break;
-      case 'no_action':
-        updated = config.copyWith(noActionColor: hexColor);
-        break;
-      default:
-        return;
-    }
-    await setLabelConfig(updated);
-  }
-
-  Future<void> resetLabelConfig() async {
-    await setLabelConfig(const LabelConfig());
-  }
-
-  // ============================================================
-  // ==================== PHASE 3: BUCKET CONFIG ================
-  // ============================================================
-
-  Future<void> setBucketConfig(BucketConfig config) async {
-    await prefs.setString(_keyBucketConfig, jsonEncode(config.toJson()));
-  }
-
-  BucketConfig getBucketConfig() {
-    final jsonString = prefs.getString(_keyBucketConfig);
-    if (jsonString == null) return BucketConfig.defaults();
-    try {
-      final config = BucketConfig.fromJson(jsonDecode(jsonString));
-      return config.buckets.isEmpty ? BucketConfig.defaults() : config;
-    } catch (e) {
-      return BucketConfig.defaults();
-    }
-  }
-
-  Future<void> renameBucket(String bucketId, String newName) async {
-    final config = getBucketConfig();
-    final updatedBuckets = config.buckets.map((bucket) {
-      if (bucket.id == bucketId) {
-        return bucket.copyWith(name: newName);
-      }
-      return bucket;
-    }).toList();
-    await setBucketConfig(config.copyWith(buckets: updatedBuckets));
-  }
-
-  Future<void> updateBucketIcon(String bucketId, String iconName) async {
-    final config = getBucketConfig();
-    final updatedBuckets = config.buckets.map((bucket) {
-      if (bucket.id == bucketId) {
-        return bucket.copyWith(icon: iconName);
-      }
-      return bucket;
-    }).toList();
-    await setBucketConfig(config.copyWith(buckets: updatedBuckets));
-  }
-
-  Future<void> toggleBucketVisibility(String bucketId) async {
-    final config = getBucketConfig();
-    final updatedBuckets = config.buckets.map((bucket) {
-      if (bucket.id == bucketId) {
-        return bucket.copyWith(isVisible: !bucket.isVisible);
-      }
-      return bucket;
-    }).toList();
-    await setBucketConfig(config.copyWith(buckets: updatedBuckets));
-  }
-
-  Future<void> reorderBuckets(int oldIndex, int newIndex) async {
-    final config = getBucketConfig();
-    final buckets = List<BucketItem>.from(config.sortedBuckets);
-
-    if (newIndex > oldIndex) newIndex--;
-
-    final item = buckets.removeAt(oldIndex);
-    buckets.insert(newIndex, item);
-
-    // Update order values
-    final updatedBuckets = buckets.asMap().entries.map((entry) {
-      return entry.value.copyWith(order: entry.key);
-    }).toList();
-
-    await setBucketConfig(config.copyWith(buckets: updatedBuckets));
-  }
-
-  Future<void> resetBucketConfig() async {
-    await setBucketConfig(BucketConfig.defaults());
-  }
-
-  // ============================================================
-  // =============== PHASE 3: NOTIFICATION SETTINGS =============
-  // ============================================================
-
-  Future<void> setNotificationSettings(NotificationSettings settings) async {
-    await prefs.setString(
-        _keyNotificationSettings, jsonEncode(settings.toJson()));
-  }
+  // ==========================================
+  // NOTIFICATION SETTINGS
+  // ==========================================
 
   NotificationSettings getNotificationSettings() {
-    final jsonString = prefs.getString(_keyNotificationSettings);
-    if (jsonString == null) return const NotificationSettings();
+    final jsonStr = _prefs?.getString('notification_settings');
+    if (jsonStr == null) return const NotificationSettings();
     try {
-      return NotificationSettings.fromJson(jsonDecode(jsonString));
+      return NotificationSettings.fromJson(json.decode(jsonStr));
     } catch (e) {
       return const NotificationSettings();
     }
   }
 
-  Future<void> updateNotificationSetting({
-    bool? enabled,
-    bool? urgentEmails,
-    bool? importantEmails,
-    bool? lowPriorityEmails,
-    bool? needsActionReminders,
-    bool? waitingFollowUps,
-    bool? deadlineReminders,
-    int? reminderFrequencyHours,
-    bool? quietHoursEnabled,
-    String? quietHoursStart,
-    String? quietHoursEnd,
-    bool? soundEnabled,
-    bool? vibrationEnabled,
-    bool? dailyDigestEnabled,
-    String? dailyDigestTime,
-  }) async {
-    final current = getNotificationSettings();
-    final updated = current.copyWith(
-      enabled: enabled,
-      urgentEmails: urgentEmails,
-      importantEmails: importantEmails,
-      lowPriorityEmails: lowPriorityEmails,
-      needsActionReminders: needsActionReminders,
-      waitingFollowUps: waitingFollowUps,
-      deadlineReminders: deadlineReminders,
-      reminderFrequencyHours: reminderFrequencyHours,
-      quietHoursEnabled: quietHoursEnabled,
-      quietHoursStart: quietHoursStart,
-      quietHoursEnd: quietHoursEnd,
-      soundEnabled: soundEnabled,
-      vibrationEnabled: vibrationEnabled,
-      dailyDigestEnabled: dailyDigestEnabled,
-      dailyDigestTime: dailyDigestTime,
-    );
-    await setNotificationSettings(updated);
+  Future<void> setNotificationSettings(NotificationSettings settings) async {
+    await _prefs?.setString('notification_settings', json.encode(settings.toJson()));
   }
 
-  Future<void> resetNotificationSettings() async {
-    await setNotificationSettings(const NotificationSettings());
-  }
+  // ==========================================
+  // LABEL CONFIG
+  // ==========================================
 
-  // ============================================================
-  // ==================== PHASE 3: USAGE STATS ==================
-  // ============================================================
-
-  Future<void> setUsageStats(UsageStats stats) async {
-    await prefs.setString(_keyUsageStats, jsonEncode(stats.toJson()));
-  }
-
-  UsageStats getUsageStats() {
-    final jsonString = prefs.getString(_keyUsageStats);
-    if (jsonString == null) {
-      // Initialize with first used time
-      final initial = UsageStats(firstUsed: DateTime.now());
-      setUsageStats(initial);
-      return initial;
-    }
+  LabelConfig getLabelConfig() {
+    final jsonStr = _prefs?.getString('label_config');
+    if (jsonStr == null) return const LabelConfig();
     try {
-      return UsageStats.fromJson(jsonDecode(jsonString));
+      return LabelConfig.fromJson(json.decode(jsonStr));
     } catch (e) {
-      return UsageStats(firstUsed: DateTime.now());
+      return const LabelConfig();
     }
   }
 
-  Future<void> incrementStat(String statName, [int amount = 1]) async {
-    final stats = getUsageStats();
-    final json = stats.toJson();
-    json[statName] = (json[statName] as int? ?? 0) + amount;
-    await setUsageStats(UsageStats.fromJson(json));
+  Future<void> _saveLabelConfig(LabelConfig config) async {
+    await _prefs?.setString('label_config', json.encode(config.toJson()));
   }
 
-  Future<void> incrementRepliesSent() async {
-    await incrementStat('repliesSent');
-    await incrementStat('minutesSaved', 3); // Estimate: 3 mins saved per reply
-    await _incrementDailyAction();
-  }
-
-  Future<void> incrementSnoozed() async {
-    await incrementStat('emailsSnoozed');
-    await incrementStat('minutesSaved', 1);
-    await _incrementDailyAction();
-  }
-
-  Future<void> incrementMarkedDone() async {
-    await incrementStat('emailsMarkedDone');
-    await incrementStat('minutesSaved', 2);
-    await _incrementDailyAction();
-  }
-
-  Future<void> incrementEmailsProcessed([int count = 1]) async {
-    await incrementStat('totalEmailsProcessed', count);
-  }
-
-  Future<void> incrementNeedsActionSurfaced([int count = 1]) async {
-    await incrementStat('needsActionSurfaced', count);
-  }
-
-  Future<void> incrementNewslettersFiltered([int count = 1]) async {
-    await incrementStat('newslettersFiltered', count);
-    await incrementStat('minutesSaved', count);
-  }
-
-  Future<void> incrementLowValueFiltered([int count = 1]) async {
-    await incrementStat('lowValueFiltered', count);
-  }
-
-  Future<void> incrementDeadlinesDetected() async {
-    await incrementStat('deadlinesDetected');
-  }
-
-  Future<void> incrementQuestionsDetected() async {
-    await incrementStat('questionsDetected');
-  }
-
-  Future<void> updateLastSync() async {
-    final stats = getUsageStats();
-    await setUsageStats(stats.copyWith(lastSync: DateTime.now()));
-  }
-
-  Future<void> _incrementDailyAction() async {
-    final stats = getUsageStats();
-    final today = DateTime.now().toIso8601String().substring(0, 10);
-    final dailyActions = Map<String, int>.from(stats.dailyActions);
-    dailyActions[today] = (dailyActions[today] ?? 0) + 1;
-    await setUsageStats(stats.copyWith(dailyActions: dailyActions));
-  }
-
-  Future<void> resetUsageStats() async {
-    await setUsageStats(UsageStats(firstUsed: DateTime.now()));
-  }
-
-  // ============================================================
-  // ==================== PHASE 3: RATE APP =====================
-  // ============================================================
-
-  Future<void> setRateAppRated(bool value) async {
-    await prefs.setBool(_keyRateAppRated, value);
-  }
-
-  bool getRateAppRated() {
-    return prefs.getBool(_keyRateAppRated) ?? false;
-  }
-
-  Future<void> setRateAppLastPrompt(int timestamp) async {
-    await prefs.setInt(_keyRateAppLastPrompt, timestamp);
-  }
-
-  int? getRateAppLastPrompt() {
-    return prefs.getInt(_keyRateAppLastPrompt);
-  }
-
-  Future<void> incrementRateAppDismissCount() async {
-    final count = prefs.getInt(_keyRateAppDismissCount) ?? 0;
-    await prefs.setInt(_keyRateAppDismissCount, count + 1);
-  }
-
-  int getRateAppDismissCount() {
-    return prefs.getInt(_keyRateAppDismissCount) ?? 0;
-  }
-
-  Future<void> incrementRateAppActionCount() async {
-    final count = prefs.getInt(_keyRateAppActionCount) ?? 0;
-    await prefs.setInt(_keyRateAppActionCount, count + 1);
-  }
-
-  int getRateAppActionCount() {
-    return prefs.getInt(_keyRateAppActionCount) ?? 0;
-  }
-
-  Future<void> resetRateAppData() async {
-    await prefs.remove(_keyRateAppRated);
-    await prefs.remove(_keyRateAppLastPrompt);
-    await prefs.remove(_keyRateAppDismissCount);
-    await prefs.remove(_keyRateAppActionCount);
-  }
-
-  // ============================================================
-  // ==================== CLEAR ALL DATA ========================
-  // ============================================================
-
-  Future<void> clearAllData() async {
-    await prefs.clear();
-  }
-
-  /// Clear only email-related cached data (not settings)
-  Future<void> clearEmailCache() async {
-    // Add keys for email cache here when you implement caching
-    // For now, this is a placeholder
-  }
-
-  // ============================================================
-  // ==================== RESET TO DEFAULTS =====================
-  // ============================================================
-
-  Future<void> resetToDefaults() async {
-    // Original settings
-    await setPrioritySensitivity(PrioritySensitivity.normal);
-    await setSmartDetection(true);
-    await setPrivacyMode(PrivacyMode.summary);
-    await setNewsletterDigest(true);
-    await setAutoArchive(false);
-    await setSyncFrequency(SyncFrequency.fifteenMin);
-    await setVipSenders([]);
-    await setMutedSenders([]);
-    await setThemeMode('system');
-    await setDefaultTab('action');
-    await setHapticFeedback(true);
-
-    // Phase 3 settings
-    await resetLabelConfig();
-    await resetBucketConfig();
-    await resetNotificationSettings();
-    // Note: We don't reset usage stats on defaults reset
-  }
-
-  // ============================================================
-  // ==================== PHASE 3 HELPER GETTERS ================
-  // ============================================================
-
-  /// Get the count of customized labels (non-default)
-  int getCustomizedLabelCount() {
+  Future<void> updatePriorityLabel(String id, String label) async {
     final config = getLabelConfig();
-    final defaults = const LabelConfig();
-    int count = 0;
-
-    if (config.urgentLabel != defaults.urgentLabel) count++;
-    if (config.importantLabel != defaults.importantLabel) count++;
-    if (config.lowLabel != defaults.lowLabel) count++;
-    if (config.needsReplyLabel != defaults.needsReplyLabel) count++;
-    if (config.waitingLabel != defaults.waitingLabel) count++;
-    if (config.noActionLabel != defaults.noActionLabel) count++;
-
-    return count;
+    LabelConfig newConfig;
+    switch (id.toLowerCase()) {
+      case 'urgent':
+        newConfig = config.copyWith(urgentLabel: label);
+        break;
+      case 'important':
+        newConfig = config.copyWith(importantLabel: label);
+        break;
+      case 'low':
+        newConfig = config.copyWith(lowLabel: label);
+        break;
+      default:
+        return;
+    }
+    await _saveLabelConfig(newConfig);
   }
 
-  /// Get the count of visible buckets
-  int getVisibleBucketCount() {
-    return getBucketConfig().visibleBuckets.length;
+  Future<void> updatePriorityColor(String id, String hex) async {
+    final config = getLabelConfig();
+    LabelConfig newConfig;
+    switch (id.toLowerCase()) {
+      case 'urgent':
+        newConfig = config.copyWith(urgentColor: hex);
+        break;
+      case 'important':
+        newConfig = config.copyWith(importantColor: hex);
+        break;
+      case 'low':
+        newConfig = config.copyWith(lowColor: hex);
+        break;
+      default:
+        return;
+    }
+    await _saveLabelConfig(newConfig);
   }
 
-  /// Check if notifications are enabled
-  bool areNotificationsEnabled() {
-    return getNotificationSettings().enabled;
+  Future<void> updateActionLabel(String id, String label) async {
+    final config = getLabelConfig();
+    LabelConfig newConfig;
+    switch (id.toLowerCase()) {
+      case 'needs_reply':
+        newConfig = config.copyWith(needsReplyLabel: label);
+        break;
+      case 'waiting':
+        newConfig = config.copyWith(waitingLabel: label);
+        break;
+      case 'no_action':
+        newConfig = config.copyWith(noActionLabel: label);
+        break;
+      default:
+        return;
+    }
+    await _saveLabelConfig(newConfig);
   }
 
-  /// Get formatted time saved string
-  String getFormattedTimeSaved() {
-    return getUsageStats().formattedTimeSaved;
+  Future<void> updateActionColor(String id, String hex) async {
+    final config = getLabelConfig();
+    LabelConfig newConfig;
+    switch (id.toLowerCase()) {
+      case 'needs_reply':
+        newConfig = config.copyWith(needsReplyColor: hex);
+        break;
+      case 'waiting':
+        newConfig = config.copyWith(waitingColor: hex);
+        break;
+      case 'no_action':
+        newConfig = config.copyWith(noActionColor: hex);
+        break;
+      default:
+        return;
+    }
+    await _saveLabelConfig(newConfig);
   }
 
-  /// Check if should show rate app prompt
-  bool shouldShowRateAppPrompt() {
-    // Already rated
-    if (getRateAppRated()) return false;
+  Future<void> resetLabelConfig() async {
+    await _prefs?.remove('label_config');
+  }
 
-    // Too many dismissals (max 3)
-    if (getRateAppDismissCount() >= 3) return false;
+  // ==========================================
+  // BUCKET CONFIG
+  // ==========================================
 
-    // Not enough actions yet (min 10)
-    if (getRateAppActionCount() < 10) return false;
+  BucketConfig getBucketConfig() {
+    final jsonStr = _prefs?.getString('bucket_config');
+    if (jsonStr == null) return BucketConfig.defaults();
+    try {
+      return BucketConfig.fromJson(json.decode(jsonStr));
+    } catch (e) {
+      return BucketConfig.defaults();
+    }
+  }
 
-    // Check if enough time has passed since last prompt (14 days)
-    final lastPrompt = getRateAppLastPrompt();
-    if (lastPrompt != null) {
-      final daysSincePrompt =
-          DateTime.now().millisecondsSinceEpoch - lastPrompt;
-      if (daysSincePrompt < 14 * 24 * 60 * 60 * 1000) return false;
+  Future<void> _saveBucketConfig(BucketConfig config) async {
+    await _prefs?.setString('bucket_config', json.encode(config.toJson()));
+  }
+
+  Future<void> reorderBuckets(int oldIndex, int newIndex) async {
+    final config = getBucketConfig();
+    final buckets = List<BucketItem>.from(config.sortedBuckets);
+    
+    if (oldIndex < newIndex) {
+      newIndex -= 1;
+    }
+    final item = buckets.removeAt(oldIndex);
+    buckets.insert(newIndex, item);
+
+    // Update orders
+    final updatedBuckets = <BucketItem>[];
+    for (int i = 0; i < buckets.length; i++) {
+      updatedBuckets.add(buckets[i].copyWith(order: i));
     }
 
-    return true;
+    await _saveBucketConfig(BucketConfig(buckets: updatedBuckets));
   }
+
+  Future<void> toggleBucketVisibility(String id) async {
+    final config = getBucketConfig();
+    final updatedBuckets = config.buckets.map((b) {
+      if (b.id == id) {
+        return b.copyWith(isVisible: !b.isVisible);
+      }
+      return b;
+    }).toList();
+    await _saveBucketConfig(BucketConfig(buckets: updatedBuckets));
+  }
+
+  Future<void> renameBucket(String id, String name) async {
+    final config = getBucketConfig();
+    final updatedBuckets = config.buckets.map((b) {
+      if (b.id == id) {
+        return b.copyWith(name: name);
+      }
+      return b;
+    }).toList();
+    await _saveBucketConfig(BucketConfig(buckets: updatedBuckets));
+  }
+
+  Future<void> updateBucketIcon(String id, String icon) async {
+    final config = getBucketConfig();
+    final updatedBuckets = config.buckets.map((b) {
+      if (b.id == id) {
+        return b.copyWith(icon: icon);
+      }
+      return b;
+    }).toList();
+    await _saveBucketConfig(BucketConfig(buckets: updatedBuckets));
+  }
+
+  Future<void> resetBucketConfig() async {
+    await _prefs?.remove('bucket_config');
+  }
+
+  SharedPreferences get prefs => _prefs!;
 }

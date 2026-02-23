@@ -10,6 +10,8 @@ import 'package:app/features/home/widgets/bottom_nav.dart';
 import 'package:app/features/home/buckets_page.dart';
 import 'package:app/features/home/screens/email_details_screen.dart';
 import 'package:app/features/profile/screens/profile_screen.dart';
+import 'package:app/services/storage_service.dart';
+import 'package:app/services/sync_service.dart';
 
 class HomeScreen extends StatefulWidget {
   final String accessToken;
@@ -30,6 +32,8 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  final StorageService _storage = StorageService();
+  late final SyncService _syncService;
   bool _isLoading = true;
   String? _error;
   List<EmailModel> _emails = [];
@@ -42,104 +46,195 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchEmails();
+    _syncService = SyncService(accessToken: widget.accessToken);
+    _loadFromDatabase(); // Load cached data instantly
+    _runSync();          // Then fetch new emails from Gmail
   }
 
-  Future<void> _fetchEmails() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
+  // Future<void> _fetchEmails() async {
+  //   setState(() {
+  //     _isLoading = true;
+  //     _error = null;
+  //   });
 
-    try {
-      final messagesResponse = await http.get(
-        Uri.parse(
-          'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=$_maxResults',
-        ),
-        headers: {'Authorization': 'Bearer ${widget.accessToken}'},
-      );
+  //   try {
+  //     final messagesResponse = await http.get(
+  //       Uri.parse(
+  //         'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=$_maxResults',
+  //       ),
+  //       headers: {'Authorization': 'Bearer ${widget.accessToken}'},
+  //     );
 
-      if (messagesResponse.statusCode != 200) {
-        throw Exception('Failed to fetch messages');
-      }
+  //     if (messagesResponse.statusCode != 200) {
+  //       throw Exception('Failed to fetch messages');
+  //     }
 
-      final messagesData = json.decode(messagesResponse.body);
-      final messages = messagesData['messages'] ?? [];
+  //     final messagesData = json.decode(messagesResponse.body);
+  //     final messages = messagesData['messages'] ?? [];
 
-      List<EmailModel> emailList = [];
+  //     List<EmailModel> emailList = [];
 
-      for (var message in messages) {
-        final messageId = message['id'];
-        final threadId = message['threadId'];
+  //     for (var message in messages) {
+  //       final messageId = message['id'];
+  //       final threadId = message['threadId'];
 
-        final messageDetailResponse = await http.get(
-          Uri.parse(
-            'https://gmail.googleapis.com/gmail/v1/users/me/messages/$messageId?format=metadata&metadataHeaders=Subject&metadataHeaders=From',
-          ),
-          headers: {'Authorization': 'Bearer ${widget.accessToken}'},
-        );
+  //       final messageDetailResponse = await http.get(
+  //         Uri.parse(
+  //           'https://gmail.googleapis.com/gmail/v1/users/me/messages/$messageId?format=metadata&metadataHeaders=Subject&metadataHeaders=From',
+  //         ),
+  //         headers: {'Authorization': 'Bearer ${widget.accessToken}'},
+  //       );
 
-        if (messageDetailResponse.statusCode == 200) {
-          final detailData = json.decode(messageDetailResponse.body);
-          final headers = detailData['payload']['headers'] as List<dynamic>;
+  //       if (messageDetailResponse.statusCode == 200) {
+  //         final detailData = json.decode(messageDetailResponse.body);
+  //         final headers = detailData['payload']['headers'] as List<dynamic>;
 
-          String subject = '';
-          String from = '';
+  //         String subject = '';
+  //         String from = '';
 
-          for (var header in headers) {
-            if (header['name'] == 'Subject') subject = header['value'];
-            if (header['name'] == 'From') from = header['value'];
-          }
+  //         for (var header in headers) {
+  //           if (header['name'] == 'Subject') subject = header['value'];
+  //           if (header['name'] == 'From') from = header['value'];
+  //         }
 
-          emailList.add(
-            _convertToEmailModel(
-              messageId,
-              threadId,
-              subject,
-              from,
-              emailList.length,
-            ),
-          );
-        }
-      }
+  //         emailList.add(
+  //           _convertToEmailModel(
+  //             messageId,
+  //             threadId,
+  //             subject,
+  //             from,
+  //             emailList.length,
+  //           ),
+  //         );
+  //       }
+  //     }
 
+  //     setState(() {
+  //       _emails = emailList;
+  //     });
+  //   } catch (e) {
+  //     setState(() {
+  //       _error = e.toString();
+  //     });
+  //   } finally {
+  //     setState(() {
+  //       _isLoading = false;
+  //     });
+  //   }
+  // }
+
+  // EmailModel _convertToEmailModel(
+  //   String id,
+  //   String threadId,
+  //   String subject,
+  //   String from,
+  //   int index,
+  // ) {
+  //   final senderName = from.contains('<') ? from.split('<')[0].trim() : from;
+  //   final senderInitials = _getInitials(senderName);
+
+  //   final priorities = [
+  //     Priority.urgent,
+  //     Priority.important,
+  //     Priority.low,
+  //     Priority.action,
+  //   ];
+  //   final actionTypes = [
+  //     ActionType.directQuestion,
+  //     ActionType.deadline,
+  //     ActionType.waitingReply,
+  //     ActionType.billing,
+  //     ActionType.none,
+  //   ];
+  //   final avatarColors = [
+  //     AppColors.primaryBlue,
+  //     const Color(0xFFF2CB04),
+  //     const Color(0xFF1565C0),
+  //     const Color(0xFF0D47A1),
+  //   ];
+
+  //   return EmailModel(
+  //     id: id,
+  //     threadId: threadId,
+  //     senderName: senderName.isEmpty ? 'Unknown Sender' : senderName,
+  //     senderInitials: senderInitials,
+  //     subject: subject.isEmpty ? '(No Subject)' : subject,
+  //     preview: 'This is a preview of the email content...',
+  //     timestamp: DateTime.now().subtract(Duration(hours: index * 2)),
+  //     priority: priorities[index % priorities.length],
+  //     actionType: index < 3
+  //         ? actionTypes[index % actionTypes.length]
+  //         : ActionType.none,
+  //     isRead: index % 3 == 0,
+  //     avatarColor: avatarColors[index % avatarColors.length],
+  //   );
+  // }
+
+  // NEW: Load emails from local database (instant, no network)
+  Future<void> _loadFromDatabase() async {
+    final rawEmails = await _storage.getAllEmails();
+    if (mounted) {
       setState(() {
-        _emails = emailList;
-      });
-    } catch (e) {
-      setState(() {
-        _error = e.toString();
-      });
-    } finally {
-      setState(() {
+        _emails = rawEmails.map(_dbToEmailModel).toList();
         _isLoading = false;
       });
     }
   }
 
-  EmailModel _convertToEmailModel(
-    String id,
-    String threadId,
-    String subject,
-    String from,
-    int index,
-  ) {
-    final senderName = from.contains('<') ? from.split('<')[0].trim() : from;
-    final senderInitials = _getInitials(senderName);
+  // NEW: Sync from Gmail → Intelligence → SQLite → Reload UI
+  Future<void> _runSync() async {
+    setState(() {
+      _isLoading = _emails.isEmpty; // Only show spinner if no cached data
+      _error = null;
+    });
 
-    final priorities = [
-      Priority.urgent,
-      Priority.important,
-      Priority.low,
-      Priority.action,
-    ];
-    final actionTypes = [
-      ActionType.directQuestion,
-      ActionType.deadline,
-      ActionType.waitingReply,
-      ActionType.billing,
-      ActionType.none,
-    ];
+    try {
+      await _syncService.quickSync();
+      await _loadFromDatabase();
+    } catch (e) {
+      setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // NEW: Convert SQLite row → EmailModel (replaces _convertToEmailModel)
+  EmailModel _dbToEmailModel(Map<String, dynamic> data) {
+    // Map bucket string to ActionType enum
+    ActionType type = ActionType.none;
+    switch (data['bucket']) {
+      case 'needs_reply': type = ActionType.directQuestion; break;
+      case 'bills': type = ActionType.billing; break;
+      case 'waiting': type = ActionType.waitingReply; break;
+      case 'calendar': type = ActionType.deadline; break;
+    }
+
+    // Map priorityLabel from DB (with score-based fallback for legacy rows)
+    Priority priority;
+    final label = data['priorityLabel'] as String?;
+    final int score = data['priorityScore'] ?? 0;
+
+    if (label != null && label.isNotEmpty && label != 'low') {
+      // Explicit non-low label from engine — trust it
+      switch (label) {
+        case 'urgent': priority = Priority.urgent; break;
+        case 'important': priority = Priority.important; break;
+        default: priority = Priority.low;
+      }
+    } else {
+      // No label, or label is 'low' — use score to catch legacy rows
+      if (score >= 70) priority = Priority.urgent;
+      else if (score >= 40) priority = Priority.important;
+      else priority = Priority.low;
+    }
+
+    // DEBUG: Remove after verifying
+    print('📧 ${data['subject']} | label=$label | score=$score → $priority');
+
+    // Timestamp
+    DateTime timestamp = DateTime.fromMillisecondsSinceEpoch(data['timestamp'] ?? 0);
+
+    // Avatar colors (cycle through based on email id hash)
     final avatarColors = [
       AppColors.primaryBlue,
       const Color(0xFFF2CB04),
@@ -148,22 +243,19 @@ class _HomeScreenState extends State<HomeScreen> {
     ];
 
     return EmailModel(
-      id: id,
-      threadId: threadId,
-      senderName: senderName.isEmpty ? 'Unknown Sender' : senderName,
-      senderInitials: senderInitials,
-      subject: subject.isEmpty ? '(No Subject)' : subject,
-      preview: 'This is a preview of the email content...',
-      timestamp: DateTime.now().subtract(Duration(hours: index * 2)),
-      priority: priorities[index % priorities.length],
-      actionType: index < 3
-          ? actionTypes[index % actionTypes.length]
-          : ActionType.none,
-      isRead: index % 3 == 0,
-      avatarColor: avatarColors[index % avatarColors.length],
+      id: data['id'] ?? '',
+      threadId: data['threadId'] ?? '',
+      senderName: data['senderName'] ?? 'Unknown Sender',
+      senderInitials: _getInitials(data['senderName'] ?? ''),
+      subject: data['subject'] ?? '(No Subject)',
+      preview: data['snippet'] ?? '',
+      timestamp: timestamp,
+      priority: priority,
+      actionType: type,
+      isRead: (data['isRead'] ?? 0) == 1,
+      avatarColor: avatarColors[(data['id'] ?? '').hashCode.abs() % avatarColors.length],
     );
   }
-
   String _getInitials(String name) {
     if (name.isEmpty) return 'U';
     final parts = name.trim().split(' ');
@@ -247,7 +339,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         _maxResults = value!;
                       });
                       Navigator.pop(context);
-                      _fetchEmails();
+                      _runSync();
                     },
                   ),
                   title: Text(
@@ -265,7 +357,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       _maxResults = count;
                     });
                     Navigator.pop(context);
-                    _fetchEmails();
+                    _runSync();
                   },
                 );
               }),
@@ -307,7 +399,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     ).then((_) {
       setState(() => _bottomNavIndex = 0);
-      _fetchEmails();
+      _loadFromDatabase();
     });
   }
 
@@ -324,7 +416,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     ).then((changed) {
       if (changed == true) {
-        _fetchEmails();
+        _loadFromDatabase();
       }
     });
   }
@@ -438,7 +530,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 24),
           ElevatedButton(
-            onPressed: _fetchEmails,
+            onPressed: _runSync,
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primaryBlue,
               foregroundColor: AppColors.textLight,
@@ -464,7 +556,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildEmailList() {
     return RefreshIndicator(
-      onRefresh: _fetchEmails,
+      onRefresh: _runSync,
       color: AppColors.primaryBlue,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
