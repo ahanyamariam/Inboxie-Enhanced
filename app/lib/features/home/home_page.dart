@@ -198,7 +198,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // NEW: Convert SQLite row → EmailModel (replaces _convertToEmailModel)
   EmailModel _dbToEmailModel(Map<String, dynamic> data) {
     // Map bucket string to ActionType enum
     ActionType type = ActionType.none;
@@ -207,34 +206,45 @@ class _HomeScreenState extends State<HomeScreen> {
       case 'bills': type = ActionType.billing; break;
       case 'waiting': type = ActionType.waitingReply; break;
       case 'calendar': type = ActionType.deadline; break;
+      case 'inbox': type = ActionType.none; break;
+      case 'low_value': type = ActionType.none; break;
     }
 
-    // Map priorityLabel from DB (with score-based fallback for legacy rows)
+    // Map priorityLabel from DB (with score-based fallback)
     Priority priority;
     final label = data['priorityLabel'] as String?;
     final int score = data['priorityScore'] ?? 0;
 
-    if (label != null && label.isNotEmpty && label != 'low') {
-      // Explicit non-low label from engine — trust it
+    if (label != null && label.isNotEmpty) {
       switch (label) {
         case 'urgent': priority = Priority.urgent; break;
         case 'important': priority = Priority.important; break;
-        default: priority = Priority.low;
+        case 'normal': priority = Priority.action; break;
+        case 'low': priority = Priority.low; break;
+        default:
+          // Fallback to score
+          if (score >= 50) priority = Priority.urgent;
+          else if (score >= 25) priority = Priority.important;
+          else if (score >= 10) priority = Priority.action;
+          else priority = Priority.low;
       }
     } else {
-      // No label, or label is 'low' — use score to catch legacy rows
-      if (score >= 70) priority = Priority.urgent;
-      else if (score >= 40) priority = Priority.important;
+      if (score >= 50) priority = Priority.urgent;
+      else if (score >= 25) priority = Priority.important;
+      else if (score >= 10) priority = Priority.action;
       else priority = Priority.low;
     }
 
-    // DEBUG: Remove after verifying
-    print('📧 ${data['subject']} | label=$label | score=$score → $priority');
+    // Parse signals
+    final signalsRaw = data['signals'] as String? ?? '';
+    final signals = signalsRaw.isNotEmpty
+        ? signalsRaw.split('||').where((s) => s.isNotEmpty).toList()
+        : <String>[];
 
     // Timestamp
     DateTime timestamp = DateTime.fromMillisecondsSinceEpoch(data['timestamp'] ?? 0);
 
-    // Avatar colors (cycle through based on email id hash)
+    // Avatar colors
     final avatarColors = [
       AppColors.primaryBlue,
       const Color(0xFFF2CB04),
@@ -254,6 +264,7 @@ class _HomeScreenState extends State<HomeScreen> {
       actionType: type,
       isRead: (data['isRead'] ?? 0) == 1,
       avatarColor: avatarColors[(data['id'] ?? '').hashCode.abs() % avatarColors.length],
+      signals: signals,
     );
   }
   String _getInitials(String name) {
