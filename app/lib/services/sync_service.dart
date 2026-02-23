@@ -112,6 +112,7 @@ class SyncService {
             'isRead': 0,
             'status': 'open',
             'syncedAt': DateTime.now().millisecondsSinceEpoch,
+            'signals': (analysis['signals'] as List<String>).join('||'),
           });
 
           processed++;

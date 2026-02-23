@@ -17,6 +17,7 @@ class EmailModel {
   final bool isRead;
   final Color? avatarColor;
   final String? avatarUrl;
+  final List<String> signals;
 
   EmailModel({
     required this.id,
@@ -31,6 +32,7 @@ class EmailModel {
     this.isRead = false,
     this.avatarColor,
     this.avatarUrl,
+    this.signals = const [],
   });
 
   String get timeAgo {

@@ -38,7 +38,7 @@ class StorageService {
 
     return await openDatabase(
       path,
-      version: 3,
+      version: 5,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE emails (
@@ -49,13 +49,14 @@ class StorageService {
             subject TEXT,
             snippet TEXT,
             timestamp INTEGER,
-            bucket TEXT DEFAULT 'low',
+            bucket TEXT DEFAULT 'inbox',
             priorityScore INTEGER DEFAULT 0,
             priorityLabel TEXT DEFAULT 'low',
             isActionable INTEGER DEFAULT 0,
             isRead INTEGER DEFAULT 0,
             status TEXT DEFAULT 'open',
-            syncedAt INTEGER
+            syncedAt INTEGER,
+            signals TEXT DEFAULT '[]'
           )
         ''');
 
@@ -126,6 +127,65 @@ class StorageService {
             );
           }
           print('v3 migration: Re-scored ${rows.length} emails with new priority engine');
+        }
+        if (oldVersion < 4) {
+          // v4: Add signals column + re-score with overhauled engine
+          try {
+            await db.execute("ALTER TABLE emails ADD COLUMN signals TEXT DEFAULT '[]'");
+          } catch (_) { /* column may already exist */ }
+          final vipSenders = _prefs?.getStringList('vip_senders') ?? [];
+          final rows = await db.query('emails');
+          for (var email in rows) {
+            final analysis = IntelligenceService.analyze(
+              subject: (email['subject'] as String?) ?? '',
+              snippet: (email['snippet'] as String?) ?? '',
+              from: (email['senderEmail'] as String?) ?? '',
+              vipSenders: vipSenders,
+              emailTimestamp: (email['timestamp'] as int?) ?? 0,
+            );
+            final signalsList = analysis['signals'] as List<String>;
+            await db.update(
+              'emails',
+              {
+                'priorityScore': analysis['priorityScore'],
+                'priorityLabel': analysis['priorityLabel'],
+                'bucket': analysis['bucket'],
+                'isActionable': analysis['isActionable'] ? 1 : 0,
+                'signals': signalsList.join('||'),
+              },
+              where: 'id = ?',
+              whereArgs: [email['id']],
+            );
+          }
+          print('v4 migration: Re-scored ${rows.length} emails with overhauled intelligence engine');
+        }
+        if (oldVersion < 5) {
+          // v5: Re-score with bulk domain detection for marketing emails
+          final vipSenders = _prefs?.getStringList('vip_senders') ?? [];
+          final rows = await db.query('emails');
+          for (var email in rows) {
+            final analysis = IntelligenceService.analyze(
+              subject: (email['subject'] as String?) ?? '',
+              snippet: (email['snippet'] as String?) ?? '',
+              from: (email['senderEmail'] as String?) ?? '',
+              vipSenders: vipSenders,
+              emailTimestamp: (email['timestamp'] as int?) ?? 0,
+            );
+            final signalsList = analysis['signals'] as List<String>;
+            await db.update(
+              'emails',
+              {
+                'priorityScore': analysis['priorityScore'],
+                'priorityLabel': analysis['priorityLabel'],
+                'bucket': analysis['bucket'],
+                'isActionable': analysis['isActionable'] ? 1 : 0,
+                'signals': signalsList.join('||'),
+              },
+              where: 'id = ?',
+              whereArgs: [email['id']],
+            );
+          }
+          print('v5 migration: Re-scored ${rows.length} emails with bulk domain detection');
         }
       },
     );
@@ -203,6 +263,18 @@ class StorageService {
       whereArgs: [bucket],
       orderBy: 'timestamp DESC',
     );
+  }
+
+  Future<Map<String, int>> getBucketCounts() async {
+    final db = await database;
+    final results = await db.rawQuery(
+      'SELECT bucket, COUNT(*) as count FROM emails GROUP BY bucket'
+    );
+    final counts = <String, int>{};
+    for (var row in results) {
+      counts[row['bucket'] as String] = row['count'] as int;
+    }
+    return counts;
   }
 
   Future<bool> emailExists(String id) async {

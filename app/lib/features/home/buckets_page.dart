@@ -1,6 +1,4 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:app/core/theme/app_colors.dart';
 import 'package:app/models/email_model.dart';
 import 'package:app/models/bucket_model.dart';
@@ -8,6 +6,7 @@ import 'package:app/features/home/widgets/bucket_card.dart';
 import 'package:app/features/home/widgets/recent_email_item.dart';
 import 'package:app/features/home/widgets/bottom_nav.dart';
 import 'package:app/features/profile/screens/profile_screen.dart';
+import 'package:app/services/storage_service.dart';
 
 class BucketsPage extends StatefulWidget {
   final String accessToken;
@@ -28,47 +27,19 @@ class BucketsPage extends StatefulWidget {
 }
 
 class _BucketsPageState extends State<BucketsPage> {
+  final StorageService _storage = StorageService();
   bool _isLoading = true;
   String? _error;
   List<EmailModel> _emails = [];
   final TextEditingController _searchController = TextEditingController();
 
-  // Bucket data
-  final List<BucketModel> _buckets = [
-    BucketModel(
-      type: BucketType.reply,
-      title: 'Reply',
-      subtitle: 'PRIORITY',
-      count: 12,
-      icon: Icons.reply_rounded,
-    ),
-    BucketModel(
-      type: BucketType.waiting,
-      title: 'Waiting',
-      subtitle: 'PENDING',
-      count: 5,
-      icon: Icons.schedule_rounded,
-    ),
-    BucketModel(
-      type: BucketType.finance,
-      title: 'Finance',
-      subtitle: 'RECEIPTS',
-      count: 8,
-      icon: Icons.receipt_long_rounded,
-    ),
-    BucketModel(
-      type: BucketType.updates,
-      title: 'Updates',
-      subtitle: 'NEWSLETTER',
-      count: 42,
-      icon: Icons.campaign_rounded,
-    ),
-  ];
+  // Live bucket data
+  List<BucketModel> _buckets = [];
 
   @override
   void initState() {
     super.initState();
-    _fetchEmails();
+    _loadData();
   }
 
   @override
@@ -77,77 +48,57 @@ class _BucketsPageState extends State<BucketsPage> {
     super.dispose();
   }
 
-  Future<void> _fetchEmails() async {
+  Future<void> _loadData() async {
     setState(() {
       _isLoading = true;
       _error = null;
     });
 
     try {
-      final messagesResponse = await http.get(
-        Uri.parse(
-          'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=10',
+      // Load bucket counts from DB
+      final counts = await _storage.getBucketCounts();
+
+      _buckets = [
+        BucketModel(
+          type: BucketType.reply,
+          title: 'Reply',
+          subtitle: 'PRIORITY',
+          count: counts['needs_reply'] ?? 0,
+          icon: Icons.reply_rounded,
         ),
-        headers: {'Authorization': 'Bearer ${widget.accessToken}'},
-      );
+        BucketModel(
+          type: BucketType.waiting,
+          title: 'Waiting',
+          subtitle: 'PENDING',
+          count: counts['waiting'] ?? 0,
+          icon: Icons.schedule_rounded,
+        ),
+        BucketModel(
+          type: BucketType.finance,
+          title: 'Finance',
+          subtitle: 'RECEIPTS',
+          count: counts['bills'] ?? 0,
+          icon: Icons.receipt_long_rounded,
+        ),
+        BucketModel(
+          type: BucketType.updates,
+          title: 'Updates',
+          subtitle: 'LOW VALUE',
+          count: counts['low_value'] ?? 0,
+          icon: Icons.campaign_rounded,
+        ),
+      ];
 
-      if (messagesResponse.statusCode != 200) {
-        throw Exception('Failed to fetch messages');
-      }
-
-      final messagesData = json.decode(messagesResponse.body);
-      final messages = messagesData['messages'] ?? [];
-
-      List<EmailModel> emailList = [];
-
-      for (var message in messages) {
-        final messageId = message['id'];
-        final threadId = message['threadId'];
-        final messageDetailResponse = await http.get(
-          Uri.parse(
-            'https://gmail.googleapis.com/gmail/v1/users/me/messages/$messageId?format=metadata&metadataHeaders=Subject&metadataHeaders=From',
-          ),
-          headers: {'Authorization': 'Bearer ${widget.accessToken}'},
-        );
-
-        if (messageDetailResponse.statusCode == 200) {
-          final detailData = json.decode(messageDetailResponse.body);
-          final headers = detailData['payload']['headers'] as List<dynamic>;
-
-          String subject = '';
-          String from = '';
-
-          for (var header in headers) {
-            if (header['name'] == 'Subject') subject = header['value'];
-            if (header['name'] == 'From') from = header['value'];
-          }
-
-          emailList.add(
-            _convertToEmailModel(
-              messageId,
-              threadId,
-              subject,
-              from,
-              emailList.length,
-            ),
-          );
-        }
-      }
-
+      // Load recent emails from DB
+      final rawEmails = await _storage.getAllEmails();
       setState(() {
-        _emails = emailList;
+        _emails = rawEmails.map(_dbToEmailModel).toList();
       });
     } catch (e) {
       if (mounted) {
         setState(() {
           _error = e.toString();
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $_error'),
-            backgroundColor: Colors.red,
-          ),
-        );
       }
     } finally {
       setState(() {
@@ -156,29 +107,34 @@ class _BucketsPageState extends State<BucketsPage> {
     }
   }
 
-  EmailModel _convertToEmailModel(
-    String id,
-    String threadId,
-    String subject,
-    String from,
-    int index,
-  ) {
-    final senderName = from.contains('<') ? from.split('<')[0].trim() : from;
+  EmailModel _dbToEmailModel(Map<String, dynamic> data) {
+    final senderName = data['senderName'] ?? 'Unknown Sender';
     final senderInitials = _getInitials(senderName);
 
-    final priorities = [
-      Priority.urgent,
-      Priority.important,
-      Priority.low,
-      Priority.action,
-    ];
-    final actionTypes = [
-      ActionType.directQuestion,
-      ActionType.deadline,
-      ActionType.waitingReply,
-      ActionType.billing,
-      ActionType.none,
-    ];
+    // Map priority label
+    Priority priority;
+    final label = data['priorityLabel'] as String? ?? 'low';
+    final int score = data['priorityScore'] ?? 0;
+    switch (label) {
+      case 'urgent': priority = Priority.urgent; break;
+      case 'important': priority = Priority.important; break;
+      case 'normal': priority = Priority.action; break;
+      default:
+        if (score >= 50) priority = Priority.urgent;
+        else if (score >= 25) priority = Priority.important;
+        else if (score >= 10) priority = Priority.action;
+        else priority = Priority.low;
+    }
+
+    // Map bucket to action type
+    ActionType type = ActionType.none;
+    switch (data['bucket']) {
+      case 'needs_reply': type = ActionType.directQuestion; break;
+      case 'bills': type = ActionType.billing; break;
+      case 'waiting': type = ActionType.waitingReply; break;
+      case 'calendar': type = ActionType.deadline; break;
+    }
+
     final avatarColors = [
       AppColors.primaryBlue,
       const Color(0xFFF2CB04),
@@ -187,19 +143,17 @@ class _BucketsPageState extends State<BucketsPage> {
     ];
 
     return EmailModel(
-      id: id,
-      threadId: threadId,
-      senderName: senderName.isEmpty ? 'Unknown Sender' : senderName,
+      id: data['id'] ?? '',
+      threadId: data['threadId'] ?? '',
+      senderName: senderName,
       senderInitials: senderInitials,
-      subject: subject.isEmpty ? '(No Subject)' : subject,
-      preview: 'This is a preview of the email content...',
-      timestamp: DateTime.now().subtract(Duration(hours: index * 2)),
-      priority: priorities[index % priorities.length],
-      actionType: index < 3
-          ? actionTypes[index % actionTypes.length]
-          : ActionType.none,
-      isRead: index % 3 == 0,
-      avatarColor: avatarColors[index % avatarColors.length],
+      subject: data['subject'] ?? '(No Subject)',
+      preview: data['snippet'] ?? '',
+      timestamp: DateTime.fromMillisecondsSinceEpoch(data['timestamp'] ?? 0),
+      priority: priority,
+      actionType: type,
+      isRead: (data['isRead'] ?? 0) == 1,
+      avatarColor: avatarColors[(data['id'] ?? '').hashCode.abs() % avatarColors.length],
     );
   }
 
