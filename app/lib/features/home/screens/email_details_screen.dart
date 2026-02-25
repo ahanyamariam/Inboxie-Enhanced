@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:app/core/theme/app_colors.dart';
 import 'package:app/services/gmail_service.dart';
+import 'package:app/services/storage_service.dart';
 
 import 'package:app/models/thread_model.dart';
 import 'package:app/features/home/widgets/thread_message_card.dart';
@@ -26,8 +27,10 @@ class EmailDetailScreen extends StatefulWidget {
 
 class _EmailDetailScreenState extends State<EmailDetailScreen> {
   late GmailService _gmailService;
+  final StorageService _storage = StorageService();
 
   bool _isLoading = true;
+  bool _readStateChanged = false;
   String? _error;
   ThreadModel? _thread;
 
@@ -50,10 +53,12 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
       final threadData = await _gmailService.fetchThread(widget.threadId);
       final thread = ThreadModel.fromGmailApi(threadData);
 
-      // Mark latest message as read
+      // Mark latest message as read (Gmail API + local DB)
       if (thread.latestMessage.isUnread) {
         await _gmailService.markAsRead(thread.latestMessage.id);
       }
+      await _storage.markAsRead(widget.messageId);
+      _readStateChanged = true;
 
       // Expand the latest message by default
       _expandedMessages.add(thread.latestMessage.id);
@@ -440,7 +445,7 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
       elevation: 0,
       leading: IconButton(
         icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-        onPressed: () => Navigator.pop(context),
+        onPressed: () => Navigator.pop(context, _readStateChanged),
       ),
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -475,7 +480,7 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          onSelected: (value) {
+          onSelected: (value) async {
             switch (value) {
               case 'archive':
                 _handleArchive();
@@ -490,10 +495,20 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
                 _collapseAll();
                 break;
               case 'mark_unread':
-                _gmailService.markAsUnread(widget.messageId);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Marked as unread')),
-                );
+                await _gmailService.markAsUnread(widget.messageId);
+                await _storage.markAsUnread(widget.messageId);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: const Text('Marked as unread'),
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  );
+                  Navigator.pop(context, true);
+                }
                 break;
             }
           },

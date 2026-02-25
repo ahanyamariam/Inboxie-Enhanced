@@ -18,6 +18,7 @@ class EmailModel {
   final Color? avatarColor;
   final String? avatarUrl;
   final List<String> signals;
+  final String? classification;
 
   EmailModel({
     required this.id,
@@ -33,6 +34,7 @@ class EmailModel {
     this.avatarColor,
     this.avatarUrl,
     this.signals = const [],
+    this.classification,
   });
 
   String get timeAgo {

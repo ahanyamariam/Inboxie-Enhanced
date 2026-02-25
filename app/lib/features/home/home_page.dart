@@ -12,6 +12,8 @@ import 'package:app/features/home/screens/email_details_screen.dart';
 import 'package:app/features/profile/screens/profile_screen.dart';
 import 'package:app/services/storage_service.dart';
 import 'package:app/services/sync_service.dart';
+import 'package:app/services/gmail_service.dart';
+import 'package:app/features/home/widgets/compose_sheet.dart';
 
 class HomeScreen extends StatefulWidget {
   final String accessToken;
@@ -34,6 +36,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final StorageService _storage = StorageService();
   late final SyncService _syncService;
+  late final GmailService _gmailService;
   bool _isLoading = true;
   String? _error;
   List<EmailModel> _emails = [];
@@ -47,6 +50,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _syncService = SyncService(accessToken: widget.accessToken);
+    _gmailService = GmailService(accessToken: widget.accessToken);
     _loadFromDatabase(); // Load cached data instantly
     _runSync();          // Then fetch new emails from Gmail
   }
@@ -203,11 +207,12 @@ class _HomeScreenState extends State<HomeScreen> {
     ActionType type = ActionType.none;
     switch (data['bucket']) {
       case 'needs_reply': type = ActionType.directQuestion; break;
-      case 'bills': type = ActionType.billing; break;
-      case 'waiting': type = ActionType.waitingReply; break;
-      case 'calendar': type = ActionType.deadline; break;
+      case 'transactions': type = ActionType.billing; break;
+      case 'events': type = ActionType.deadline; break;
+      case 'important': type = ActionType.directQuestion; break;
       case 'inbox': type = ActionType.none; break;
-      case 'low_value': type = ActionType.none; break;
+      case 'promotions': type = ActionType.none; break;
+      case 'updates': type = ActionType.none; break;
     }
 
     // Map priorityLabel from DB (with score-based fallback)
@@ -265,6 +270,7 @@ class _HomeScreenState extends State<HomeScreen> {
       isRead: (data['isRead'] ?? 0) == 1,
       avatarColor: avatarColors[(data['id'] ?? '').hashCode.abs() % avatarColors.length],
       signals: signals,
+      classification: data['label'],
     );
   }
   String _getInitials(String name) {
@@ -425,11 +431,32 @@ class _HomeScreenState extends State<HomeScreen> {
           initialSubject: email.subject,
         ),
       ),
-    ).then((changed) {
-      if (changed == true) {
-        _loadFromDatabase();
-      }
+    ).then((_) {
+      _loadFromDatabase();
     });
+  }
+
+  void _showComposeSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => ComposeSheet(
+        mode: ComposeMode.compose,
+        onSend: (to, subject, body) async {
+          final messenger = ScaffoldMessenger.of(context);
+          await _gmailService.sendEmail(
+            to: to,
+            subject: subject,
+            body: body,
+          );
+          // Show success message
+          messenger.showSnackBar(
+            const SnackBar(content: Text('Email sent successfully!')),
+          );
+        },
+      ),
+    );
   }
 
   @override
@@ -437,12 +464,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: AppColors.getBackground(context),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          // TODO: Implement compose functionality
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Compose new email')));
-        },
+        onPressed: _showComposeSheet,
         backgroundColor: AppColors.primaryBlue,
         child: const Icon(Icons.edit_rounded, color: AppColors.accentYellow),
       ),

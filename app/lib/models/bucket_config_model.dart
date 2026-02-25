@@ -76,28 +76,40 @@ class BucketConfig {
   factory BucketConfig.defaults() => const BucketConfig(
         buckets: [
           BucketItem(
-            id: 'needs_reply',
-            name: 'Needs Reply',
-            icon: 'reply',
+            id: 'important',
+            name: 'Important',
+            icon: 'star',
             order: 0,
           ),
           BucketItem(
-            id: 'waiting',
-            name: 'Waiting on Others',
-            icon: 'hourglass_empty',
+            id: 'needs_reply',
+            name: 'Needs Reply',
+            icon: 'reply',
             order: 1,
           ),
           BucketItem(
-            id: 'low_value',
-            name: 'Low Value',
-            icon: 'low_priority',
+            id: 'transactions',
+            name: 'Transactions',
+            icon: 'receipt_long',
             order: 2,
           ),
           BucketItem(
-            id: 'bills',
-            name: 'Bills & Receipts',
-            icon: 'receipt_long',
+            id: 'events',
+            name: 'Events',
+            icon: 'calendar_today',
             order: 3,
+          ),
+          BucketItem(
+            id: 'promotions',
+            name: 'Promotions',
+            icon: 'shopping_cart',
+            order: 4,
+          ),
+          BucketItem(
+            id: 'updates',
+            name: 'Updates',
+            icon: 'notifications',
+            order: 5,
           ),
         ],
       );
