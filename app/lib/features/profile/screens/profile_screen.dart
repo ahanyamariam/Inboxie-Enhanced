@@ -16,6 +16,7 @@ import 'package:app/features/home/buckets_page.dart';
 import 'package:app/features/splash/presentation/pages/splash_screen.dart';
 import 'package:app/features/profile/screens/bucket_customization_screen.dart';
 import 'package:app/features/profile/screens/label_customization_screen.dart';
+import 'package:app/features/profile/screens/email_label_management_screen.dart';
 import 'package:app/features/profile/screens/notification_settings_screen.dart';
 import 'package:app/features/profile/screens/usage_stats_screen.dart';
 import 'package:app/main.dart' show changeTheme;
@@ -506,6 +507,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 MaterialPageRoute(
                                   builder: (_) =>
                                       const LabelCustomizationScreen(),
+                                ),
+                              );
+                            },
+                          ),
+                          SettingsTile(
+                            icon: Icons.category_rounded,
+                            iconColor: Colors.teal,
+                            iconBackgroundColor: Colors.teal.withValues(alpha:
+                              0.1,
+                            ),
+                            title: 'Email Classification',
+                            subtitle: 'Manage email labels & keywords',
+                            showArrow: true,
+                            onTap: () {
+                              _triggerHaptic();
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      const EmailLabelManagementScreen(),
                                 ),
                               );
                             },

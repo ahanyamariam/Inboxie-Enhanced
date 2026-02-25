@@ -7,6 +7,7 @@ import 'package:app/models/usage_stats_model.dart';
 import 'package:app/models/notification_settings_model.dart';
 import 'package:app/models/label_config_model.dart';
 import 'package:app/models/bucket_config_model.dart';
+import 'package:app/models/email_label_model.dart';
 import 'package:app/services/intelligence_service.dart';
 
 class StorageService {
@@ -38,7 +39,7 @@ class StorageService {
 
     return await openDatabase(
       path,
-      version: 5,
+      version: 8,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE emails (
@@ -50,6 +51,7 @@ class StorageService {
             snippet TEXT,
             timestamp INTEGER,
             bucket TEXT DEFAULT 'inbox',
+            label TEXT DEFAULT 'personal',
             priorityScore INTEGER DEFAULT 0,
             priorityLabel TEXT DEFAULT 'low',
             isActionable INTEGER DEFAULT 0,
@@ -70,7 +72,7 @@ class StorageService {
           )
         ''');
 
-        print('Database tables created (v2)!');
+        print('Database tables created (v8)!');
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -187,6 +189,104 @@ class StorageService {
           }
           print('v5 migration: Re-scored ${rows.length} emails with bulk domain detection');
         }
+        if (oldVersion < 6) {
+          // v6: Add label column + re-classify all emails with label system
+          try {
+            await db.execute("ALTER TABLE emails ADD COLUMN label TEXT DEFAULT 'personal'");
+          } catch (_) { /* column may already exist */ }
+          final vipSenders = _prefs?.getStringList('vip_senders') ?? [];
+          final customLabels = _loadCustomLabelsSync();
+          final rows = await db.query('emails');
+          for (var email in rows) {
+            final analysis = IntelligenceService.analyze(
+              subject: (email['subject'] as String?) ?? '',
+              snippet: (email['snippet'] as String?) ?? '',
+              from: (email['senderEmail'] as String?) ?? '',
+              vipSenders: vipSenders,
+              emailTimestamp: (email['timestamp'] as int?) ?? 0,
+              customLabels: customLabels,
+            );
+            final signalsList = analysis['signals'] as List<String>;
+            await db.update(
+              'emails',
+              {
+                'priorityScore': analysis['priorityScore'],
+                'priorityLabel': analysis['priorityLabel'],
+                'bucket': analysis['bucket'],
+                'label': analysis['label'],
+                'isActionable': analysis['isActionable'] ? 1 : 0,
+                'signals': signalsList.join('||'),
+              },
+              where: 'id = ?',
+              whereArgs: [email['id']],
+            );
+          }
+          print('v6 migration: Re-classified ${rows.length} emails with label system');
+        }
+        if (oldVersion < 7) {
+          // v7: Final logic refinement migration
+          print('v7 migration: Starting re-classification with unified logic...');
+          final vipSenders = _prefs?.getStringList('vip_senders') ?? [];
+          final customLabels = _loadCustomLabelsSync();
+          final rows = await db.query('emails');
+          for (var email in rows) {
+            final analysis = IntelligenceService.analyze(
+              subject: (email['subject'] as String?) ?? '',
+              snippet: (email['snippet'] as String?) ?? '',
+              from: (email['senderEmail'] as String?) ?? '',
+              vipSenders: vipSenders,
+              emailTimestamp: (email['timestamp'] as int?) ?? 0,
+              customLabels: customLabels,
+            );
+            final signalsList = (analysis['signals'] as List<String>).join('||');
+            await db.update(
+              'emails',
+              {
+                'priorityScore': analysis['priorityScore'],
+                'priorityLabel': analysis['priorityLabel'],
+                'bucket': analysis['bucket'],
+                'label': analysis['label'],
+                'isActionable': analysis['isActionable'] ? 1 : 0,
+                'signals': signalsList,
+              },
+              where: 'id = ?',
+              whereArgs: [email['id']],
+            );
+          }
+          print('v7 migration: Successfully re-classified ${rows.length} emails.');
+        }
+        if (oldVersion < 8) {
+          // v8: Further refinement based on user feedback (over-aggressive reply + missing promos)
+          print('v8 migration: Re-processing emails with refined Needs Reply & Promotions logic...');
+          final vipSenders = _prefs?.getStringList('vip_senders') ?? [];
+          final customLabels = _loadCustomLabelsSync();
+          final rows = await db.query('emails');
+          for (var email in rows) {
+            final analysis = IntelligenceService.analyze(
+              subject: (email['subject'] as String?) ?? '',
+              snippet: (email['snippet'] as String?) ?? '',
+              from: (email['senderEmail'] as String?) ?? '',
+              vipSenders: vipSenders,
+              emailTimestamp: (email['timestamp'] as int?) ?? 0,
+              customLabels: customLabels,
+            );
+            final signalsList = (analysis['signals'] as List<String>).join('||');
+            await db.update(
+              'emails',
+              {
+                'priorityScore': analysis['priorityScore'],
+                'priorityLabel': analysis['priorityLabel'],
+                'bucket': analysis['bucket'],
+                'label': analysis['label'],
+                'isActionable': analysis['isActionable'] ? 1 : 0,
+                'signals': signalsList,
+              },
+              where: 'id = ?',
+              whereArgs: [email['id']],
+            );
+          }
+          print('v8 migration: Successfully re-classified ${rows.length} emails.');
+        }
       },
     );
   }
@@ -277,6 +377,29 @@ class StorageService {
     return counts;
   }
 
+  Future<List<Map<String, dynamic>>> getEmailsByLabel(String label) async {
+    final db = await database;
+    return await db.query(
+      'emails',
+      where: 'label = ?',
+      whereArgs: [label],
+      orderBy: 'timestamp DESC',
+    );
+  }
+
+  Future<Map<String, int>> getLabelCounts() async {
+    final db = await database;
+    final results = await db.rawQuery(
+      'SELECT label, COUNT(*) as count FROM emails GROUP BY label'
+    );
+    final counts = <String, int>{};
+    for (var row in results) {
+      final label = row['label'] as String? ?? 'personal';
+      counts[label] = row['count'] as int;
+    }
+    return counts;
+  }
+
   Future<bool> emailExists(String id) async {
     final db = await database;
     final result = await db.query(
@@ -301,6 +424,16 @@ class StorageService {
   Future<void> markAsRead(String id) async {
     final db = await database;
     await db.update('emails', {'isRead': 1}, where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<void> markAsUnread(String id) async {
+    final db = await database;
+    await db.update('emails', {'isRead': 0}, where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<void> updateReadStatus(String id, bool isRead) async {
+    final db = await database;
+    await db.update('emails', {'isRead': isRead ? 1 : 0}, where: 'id = ?', whereArgs: [id]);
   }
 
   Future<void> markAsDone(String id) async {
@@ -639,6 +772,54 @@ class StorageService {
 
   Future<void> resetBucketConfig() async {
     await _prefs?.remove('bucket_config');
+  }
+
+  // ==========================================
+  // CUSTOM EMAIL LABELS
+  // ==========================================
+
+  List<EmailLabel> getCustomLabels() {
+    final jsonStr = _prefs?.getString('custom_email_labels');
+    if (jsonStr == null) return [];
+    try {
+      final list = json.decode(jsonStr) as List<dynamic>;
+      return list.map((j) => EmailLabel.fromJson(j as Map<String, dynamic>)).toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /// Sync version for use during DB migration
+  List<EmailLabel> _loadCustomLabelsSync() {
+    return getCustomLabels();
+  }
+
+  Future<void> saveCustomLabels(List<EmailLabel> labels) async {
+    final jsonStr = json.encode(labels.map((l) => l.toJson()).toList());
+    await _prefs?.setString('custom_email_labels', jsonStr);
+  }
+
+  Future<void> addCustomLabel(EmailLabel label) async {
+    final labels = getCustomLabels();
+    // Don't add if ID already exists
+    if (labels.any((l) => l.id == label.id)) return;
+    labels.add(label);
+    await saveCustomLabels(labels);
+  }
+
+  Future<void> removeCustomLabel(String labelId) async {
+    final labels = getCustomLabels();
+    labels.removeWhere((l) => l.id == labelId);
+    await saveCustomLabels(labels);
+  }
+
+  Future<void> updateCustomLabel(EmailLabel updated) async {
+    final labels = getCustomLabels();
+    final index = labels.indexWhere((l) => l.id == updated.id);
+    if (index >= 0) {
+      labels[index] = updated;
+      await saveCustomLabels(labels);
+    }
   }
 
   SharedPreferences get prefs => _prefs!;

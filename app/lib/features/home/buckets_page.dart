@@ -1,25 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:app/core/theme/app_colors.dart';
-import 'package:app/models/email_model.dart';
 import 'package:app/models/bucket_model.dart';
+import 'package:app/models/bucket_config_model.dart';
 import 'package:app/features/home/widgets/bucket_card.dart';
-import 'package:app/features/home/widgets/recent_email_item.dart';
 import 'package:app/features/home/widgets/bottom_nav.dart';
+import 'package:app/features/home/bucket_detail_page.dart';
 import 'package:app/features/profile/screens/profile_screen.dart';
+import 'package:app/features/profile/screens/bucket_customization_screen.dart';
 import 'package:app/services/storage_service.dart';
 
 class BucketsPage extends StatefulWidget {
   final String accessToken;
   final String userEmail;
-  final String? userDisplayName; // ADD
-  final String? userPhotoUrl; // ADD
+  final String? userDisplayName;
+  final String? userPhotoUrl;
 
   const BucketsPage({
     super.key,
     required this.accessToken,
     required this.userEmail,
-    this.userDisplayName, // ADD
-    this.userPhotoUrl, // ADD
+    this.userDisplayName,
+    this.userPhotoUrl,
   });
 
   @override
@@ -29,11 +30,9 @@ class BucketsPage extends StatefulWidget {
 class _BucketsPageState extends State<BucketsPage> {
   final StorageService _storage = StorageService();
   bool _isLoading = true;
-  String? _error;
-  List<EmailModel> _emails = [];
   final TextEditingController _searchController = TextEditingController();
 
-  // Live bucket data
+  // Live bucket data — now dynamic from config
   List<BucketModel> _buckets = [];
 
   @override
@@ -51,54 +50,26 @@ class _BucketsPageState extends State<BucketsPage> {
   Future<void> _loadData() async {
     setState(() {
       _isLoading = true;
-      _error = null;
     });
 
     try {
-      // Load bucket counts from DB
+      // Load bucket config + counts from DB
+      final config = _storage.getBucketConfig();
       final counts = await _storage.getBucketCounts();
 
-      _buckets = [
-        BucketModel(
-          type: BucketType.reply,
-          title: 'Reply',
-          subtitle: 'PRIORITY',
-          count: counts['needs_reply'] ?? 0,
-          icon: Icons.reply_rounded,
-        ),
-        BucketModel(
-          type: BucketType.waiting,
-          title: 'Waiting',
-          subtitle: 'PENDING',
-          count: counts['waiting'] ?? 0,
-          icon: Icons.schedule_rounded,
-        ),
-        BucketModel(
-          type: BucketType.finance,
-          title: 'Finance',
-          subtitle: 'RECEIPTS',
-          count: counts['bills'] ?? 0,
-          icon: Icons.receipt_long_rounded,
-        ),
-        BucketModel(
-          type: BucketType.updates,
-          title: 'Updates',
-          subtitle: 'LOW VALUE',
-          count: counts['low_value'] ?? 0,
-          icon: Icons.campaign_rounded,
-        ),
-      ];
-
-      // Load recent emails from DB
-      final rawEmails = await _storage.getAllEmails();
-      setState(() {
-        _emails = rawEmails.map(_dbToEmailModel).toList();
-      });
+      _buckets = config.visibleBuckets.map((item) {
+        return BucketModel(
+          type: _bucketTypeFromId(item.id),
+          title: item.name,
+          subtitle: _subtitleForBucket(item.id),
+          count: counts[item.id] ?? 0,
+          icon: BucketIcons.getIcon(item.icon),
+        );
+      }).toList();
     } catch (e) {
       if (mounted) {
-        setState(() {
-          _error = e.toString();
-        });
+        // Log error silently for now since _error is unused in UI
+        print('Error loading buckets: $e');
       }
     } finally {
       setState(() {
@@ -107,62 +78,45 @@ class _BucketsPageState extends State<BucketsPage> {
     }
   }
 
-  EmailModel _dbToEmailModel(Map<String, dynamic> data) {
-    final senderName = data['senderName'] ?? 'Unknown Sender';
-    final senderInitials = _getInitials(senderName);
-
-    // Map priority label
-    Priority priority;
-    final label = data['priorityLabel'] as String? ?? 'low';
-    final int score = data['priorityScore'] ?? 0;
-    switch (label) {
-      case 'urgent': priority = Priority.urgent; break;
-      case 'important': priority = Priority.important; break;
-      case 'normal': priority = Priority.action; break;
-      default:
-        if (score >= 50) priority = Priority.urgent;
-        else if (score >= 25) priority = Priority.important;
-        else if (score >= 10) priority = Priority.action;
-        else priority = Priority.low;
+  BucketType _bucketTypeFromId(String id) {
+    switch (id) {
+      case 'important': return BucketType.important;
+      case 'needs_reply': return BucketType.reply;
+      case 'transactions': return BucketType.transactions;
+      case 'events': return BucketType.events;
+      case 'promotions': return BucketType.promotions;
+      case 'updates': return BucketType.updates;
+      case 'inbox': return BucketType.inbox;
+      default: return BucketType.inbox;
     }
-
-    // Map bucket to action type
-    ActionType type = ActionType.none;
-    switch (data['bucket']) {
-      case 'needs_reply': type = ActionType.directQuestion; break;
-      case 'bills': type = ActionType.billing; break;
-      case 'waiting': type = ActionType.waitingReply; break;
-      case 'calendar': type = ActionType.deadline; break;
-    }
-
-    final avatarColors = [
-      AppColors.primaryBlue,
-      const Color(0xFFF2CB04),
-      const Color(0xFF1565C0),
-      const Color(0xFF0D47A1),
-    ];
-
-    return EmailModel(
-      id: data['id'] ?? '',
-      threadId: data['threadId'] ?? '',
-      senderName: senderName,
-      senderInitials: senderInitials,
-      subject: data['subject'] ?? '(No Subject)',
-      preview: data['snippet'] ?? '',
-      timestamp: DateTime.fromMillisecondsSinceEpoch(data['timestamp'] ?? 0),
-      priority: priority,
-      actionType: type,
-      isRead: (data['isRead'] ?? 0) == 1,
-      avatarColor: avatarColors[(data['id'] ?? '').hashCode.abs() % avatarColors.length],
-    );
   }
 
-  String _getInitials(String name) {
-    if (name.isEmpty) return 'U';
-    final parts = name.trim().split(' ');
-    if (parts.length == 1) return parts[0][0].toUpperCase();
-    return '${parts[0][0]}${parts[parts.length - 1][0]}'.toUpperCase();
+  String _subtitleForBucket(String id) {
+    switch (id) {
+      case 'important': return 'URGENT';
+      case 'needs_reply': return 'ACTION';
+      case 'transactions': return 'FINANCE';
+      case 'events': return 'CALENDAR';
+      case 'promotions': return 'DEALS';
+      case 'updates': return 'INFO';
+      case 'inbox': return 'GENERAL';
+      default: return '';
+    }
   }
+
+  String _bucketIdFromType(BucketType type) {
+    switch (type) {
+      case BucketType.important: return 'important';
+      case BucketType.reply: return 'needs_reply';
+      case BucketType.transactions: return 'transactions';
+      case BucketType.events: return 'events';
+      case BucketType.promotions: return 'promotions';
+      case BucketType.updates: return 'updates';
+      case BucketType.inbox: return 'inbox';
+    }
+  }
+
+
 
   // ============ NAVIGATION ============
   void _onBottomNavTap(int index) {
@@ -192,28 +146,52 @@ class _BucketsPageState extends State<BucketsPage> {
     }
   }
 
+  void _showCustomization() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const BucketCustomizationScreen(),
+      ),
+    ).then((_) {
+      _loadData();
+    });
+  }
+
+  void _openBucket(BucketModel bucket) {
+    final bucketId = _bucketIdFromType(bucket.type);
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => BucketDetailPage(
+          bucketId: bucketId,
+          bucketName: bucket.title,
+          bucketIcon: bucket.icon,
+          accessToken: widget.accessToken,
+          userEmail: widget.userEmail,
+        ),
+      ),
+    ).then((_) => _loadData()); // Refresh on return
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = AppColors.isDark(context);
     return Scaffold(
       backgroundColor: AppColors.getBackground(context),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Compose new email')));
-        },
+        onPressed: _showCustomization,
         backgroundColor: AppColors.primaryBlue,
+        shape: const CircleBorder(),
         child: const Icon(
-          Icons.add_rounded,
+          Icons.tune_rounded,
           color: AppColors.accentYellow,
-          size: 32,
+          size: 28,
         ),
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       bottomNavigationBar: BottomNav(
         currentIndex: 1, // Buckets page is index 1
-        onTap: _onBottomNavTap, // UPDATED
+        onTap: _onBottomNavTap,
       ),
       body: Stack(
         children: [
@@ -252,7 +230,6 @@ class _BucketsPageState extends State<BucketsPage> {
                       // Profile Avatar
                       GestureDetector(
                         onTap: () {
-                          // Navigate to Profile
                           Navigator.push(
                             context,
                             MaterialPageRoute(
@@ -392,7 +369,7 @@ class _BucketsPageState extends State<BucketsPage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // Buckets Grid
+                              // Buckets Grid — now dynamic
                               Padding(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 24,
@@ -411,127 +388,12 @@ class _BucketsPageState extends State<BucketsPage> {
                                   itemBuilder: (context, index) {
                                     return BucketCard(
                                       bucket: _buckets[index],
-                                      onTap: () {
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                              'Open ${_buckets[index].title} bucket',
-                                            ),
-                                          ),
-                                        );
-                                      },
+                                      onTap: () => _openBucket(_buckets[index]),
                                     );
                                   },
                                 ),
                               ),
 
-                              const SizedBox(height: 32),
-
-                              // Recent Section Header
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 24,
-                                ),
-                                child: Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      'Recent',
-                                      style: TextStyle(
-                                        color: AppColors.getTextPrimary(
-                                          context,
-                                        ),
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.w800,
-                                        letterSpacing: -0.5,
-                                      ),
-                                    ),
-                                    GestureDetector(
-                                      onTap: () {
-                                        // TODO: View all recent
-                                      },
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 16,
-                                          vertical: 8,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: AppColors.getCard(context),
-                                          borderRadius: BorderRadius.circular(
-                                            20,
-                                          ),
-                                          border: Border.all(
-                                            color: AppColors.getDivider(
-                                              context,
-                                            ),
-                                            width: 1,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          'VIEW ALL',
-                                          style: TextStyle(
-                                            color: AppColors.getTextMuted(
-                                              context,
-                                            ),
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w800,
-                                            letterSpacing: 1.5,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-
-                              const SizedBox(height: 16),
-
-                              // Recent Emails List
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 24,
-                                ),
-                                child: _emails.isEmpty
-                                    ? Center(
-                                        child: Padding(
-                                          padding: const EdgeInsets.all(32),
-                                          child: Text(
-                                            'No recent emails',
-                                            style: TextStyle(
-                                              color: AppColors.getTextSecondary(
-                                                context,
-                                              ),
-                                              fontSize: 15,
-                                            ),
-                                          ),
-                                        ),
-                                      )
-                                    : ListView.builder(
-                                        shrinkWrap: true,
-                                        physics:
-                                            const NeverScrollableScrollPhysics(),
-                                        itemCount: _emails.take(5).length,
-                                        itemBuilder: (context, index) {
-                                          return RecentEmailItem(
-                                            email: _emails[index],
-                                            onTap: () {
-                                              ScaffoldMessenger.of(
-                                                context,
-                                              ).showSnackBar(
-                                                SnackBar(
-                                                  content: Text(
-                                                    'Open: ${_emails[index].subject}',
-                                                  ),
-                                                ),
-                                              );
-                                            },
-                                          );
-                                        },
-                                      ),
-                              ),
 
                               const SizedBox(height: 100),
                             ],

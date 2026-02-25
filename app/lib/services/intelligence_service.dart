@@ -1,3 +1,5 @@
+import 'package:app/models/email_label_model.dart';
+
 class IntelligenceService {
   static Map<String, dynamic> analyze({
     required String subject,
@@ -5,12 +7,8 @@ class IntelligenceService {
     required String from,
     List<String> vipSenders = const [],
     int? emailTimestamp,
+    List<EmailLabel> customLabels = const [],
   }) {
-    String bucket = 'inbox';
-    int score = 0;
-    bool isActionable = false;
-    List<String> signals = [];
-
     final subjectLower = subject.toLowerCase();
     final snippetLower = snippet.toLowerCase();
     final fromLower = from.toLowerCase();
@@ -21,258 +19,110 @@ class IntelligenceService {
       senderEmail = fromLower.split('<').last.replaceAll('>', '').trim();
     }
 
-    final senderDomain =
-        senderEmail.contains('@') ? senderEmail.split('@').last : senderEmail;
+    final classifiedLabel = DefaultLabels.classify(subject, snippet, customLabels: customLabels);
+    final labelIdFromClassifier = classifiedLabel.id;
+    final isCustom = customLabels.any((l) => l.id == labelIdFromClassifier);
 
-    // ============================================================
-    // 1️⃣ CRITICAL / SECURITY EMAIL SHIELD (NEVER ALLOW SPAM FILTER)
-    // ============================================================
+    // ---------------------------------------------------------
+    // 1️⃣ PHASE 1: SIGNAL DETECTION
+    // ---------------------------------------------------------
+    final signals = <String>{};
+    
+    // Marketing first to catch promotional "purchase" or "confirm"
+    bool isMarketing = labelIdFromClassifier == 'marketing' || labelIdFromClassifier == 'newsletter' || snippetLower.contains('unsubscribe') || snippetLower.contains('view in browser') || snippetLower.contains('opt out') ||  _hasKeywords(subjectLower, snippetLower, ['sale', 'offer', 'discount', 'promo', 'off your next']);
 
-    final criticalWords = [
-      'otp',
-      'one time password',
-      'verification code',
-      'password reset',
-      'reset your password',
-      'login attempt',
-      'new device login',
-      'security alert',
-      'suspicious activity',
-      'account locked',
-      'two-factor',
-      '2fa',
-      'authentication code'
-    ];
+    bool isSecurity = !_hasKeywords(subjectLower, snippetLower, ['marketing', 'promo']) && (labelIdFromClassifier == 'security' || _hasKeywords(subjectLower, snippetLower, ['otp', 'verification code', 'password reset', 'security alert', '2fa']));
+    
+    bool isFinancial = (labelIdFromClassifier == 'finance' || _hasKeywords(subjectLower, snippetLower, ['receipt', 'payment', 'invoice', 'transaction', 'billing', 'order confirmation'])) && !isMarketing;
+    
+    bool isCalendar = labelIdFromClassifier == 'calendar' || _hasKeywords(subjectLower, snippetLower, ['meeting', 'invite', 'calendar', 'zoom', 'google meet']);
+    
+    bool isActionPhrases = _hasKeywords(subjectLower, snippetLower, ['please', 'could you', 'can you', 'let me know', 'confirm', 'review', 'action required']) && !isFinancial;
+    bool hasQuestionInSubject = subject.contains('?');
+    bool isReplyNeeded = (isActionPhrases || hasQuestionInSubject || labelIdFromClassifier == 'work') && !isFinancial && !isMarketing;
 
-    bool isCritical = criticalWords.any(
-      (w) => subjectLower.contains(w) || snippetLower.contains(w),
-    );
+    bool isVIP = vipSenders.any((vip) => senderEmail.contains(vip.toLowerCase()));
+    
+    if (isSecurity) signals.add('Security alert');
+    if (isFinancial) signals.add('Finance/Transaction');
+    if (isCalendar) signals.add('Calendar/Meeting');
+    if (isReplyNeeded) signals.add('Action required');
+    if (isVIP) signals.add('VIP Sender');
+    if (isMarketing) signals.add('Promotional');
+    if (isCustom) signals.add('Custom Rule: ${classifiedLabel.name}');
 
-    if (isCritical) {
-      return {
-        'bucket': 'important',
-        'priorityScore': 90,
-        'isActionable': true,
-        'priorityLabel': 'urgent',
-        'signals': ['Security / verification email'],
-      };
-    }
-
-    // ============================================================
-    // 2️⃣ FINANCIAL / TRANSACTIONAL PROTECTION
-    // ============================================================
-
-    final financialWords = [
-      'invoice',
-      'receipt',
-      'payment',
-      'debited',
-      'credited',
-      'transaction',
-      'order confirmation',
-      'purchase',
-      'subscription renewal',
-      'billing',
-      'statement'
-    ];
-
-    bool isFinancial = financialWords.any(
-      (w) => subjectLower.contains(w) || snippetLower.contains(w),
-    );
-
-    if (isFinancial) {
-      return {
-        'bucket': 'transactional',
-        'priorityScore': 70,
-        'isActionable': true,
-        'priorityLabel': 'important',
-        'signals': ['Financial / receipt email'],
-      };
-    }
-
-    // ============================================================
-    // 3️⃣ VIP SENDERS
-    // ============================================================
-
-    if (vipSenders.any((vip) => senderEmail.contains(vip.toLowerCase()))) {
-      score += 40;
+    // ---------------------------------------------------------
+    // 2️⃣ PHASE 2: BUCKET ASSIGNMENT
+    // ---------------------------------------------------------
+    String bucket;
+    if (isSecurity || isVIP) {
+      bucket = 'important';
+    } else if (isFinancial) {
+      bucket = 'transactions';
+    } else if (isReplyNeeded) {
       bucket = 'needs_reply';
-      isActionable = true;
-      signals.add('From VIP sender');
+    } else if (isCalendar) {
+      bucket = 'events';
+    } else if (isMarketing) {
+      bucket = 'promotions';
+    } else {
+      bucket = (classifiedLabel.bucketId == 'inbox' || classifiedLabel.bucketId == 'updates') ? 'updates' : classifiedLabel.bucketId;
     }
 
-    // ============================================================
-    // 4️⃣ ACTION / REPLY DETECTION
-    // ============================================================
-
-    final urgentWords = [
-      'urgent',
-      'asap',
-      'immediately',
-      'critical',
-      'action required',
-      'important'
-    ];
-
-    for (var word in urgentWords) {
-      if (subjectLower.contains(word) || snippetLower.contains(word)) {
-        score += 30;
-        bucket = 'needs_reply';
-        isActionable = true;
-        signals.add('Urgency detected');
-        break;
-      }
-    }
-
-    final actionPhrases = [
-      'please',
-      'could you',
-      'can you',
-      'let me know',
-      'confirm',
-      'review',
-      'approve',
-      'send me',
-      'your feedback',
-      'take a look'
-    ];
-
-    for (var phrase in actionPhrases) {
-      if (snippetLower.contains(phrase)) {
-        score += 20;
-        bucket = 'needs_reply';
-        isActionable = true;
-        signals.add('Action requested');
-        break;
-      }
-    }
-
-    if (subject.contains('?') || snippet.contains('?')) {
-      score += 15;
-      bucket = 'needs_reply';
-      isActionable = true;
-      signals.add('Contains a question');
-    }
-
-    // ============================================================
-    // 5️⃣ CALENDAR / MEETINGS
-    // ============================================================
-
-    final calendarWords = [
-      'meeting',
-      'invite',
-      'calendar',
-      'schedule',
-      'appointment',
-      'rsvp',
-      'zoom',
-      'google meet',
-      'teams call'
-    ];
-
-    for (var word in calendarWords) {
-      if (subjectLower.contains(word) || snippetLower.contains(word)) {
-        bucket = 'calendar';
-        score += 20;
-        isActionable = true;
-        signals.add('Calendar event');
-        break;
-      }
-    }
-
-    // ============================================================
-    // 6️⃣ MARKETING / PROMOTIONAL DETECTION (BEHAVIOR-BASED)
-    // ============================================================
-
-    int marketingScore = 0;
-
-    // unsubscribe indicators
-    if (snippetLower.contains('unsubscribe')) marketingScore += 3;
-    if (snippetLower.contains('manage preferences')) marketingScore += 2;
-    if (snippetLower.contains('opt out')) marketingScore += 2;
-
-    // no-reply senders
-    bool isNoReplySender = [
-      'noreply',
-      'no-reply',
-      'donotreply',
-      'do-not-reply'
-    ].any((p) => senderEmail.contains(p));
-
-    if (isNoReplySender) marketingScore += 2;
-
-    // promo language
-    final promoWords = [
-      'sale',
-      'offer',
-      'discount',
-      '% off',
-      'limited time',
-      'deal',
-      'shop now',
-      'buy now',
-      'exclusive',
-      'free shipping',
-      'act fast',
-      'clearance'
-    ];
-
-    for (var w in promoWords) {
-      if (subjectLower.contains(w) || snippetLower.contains(w)) {
-        marketingScore += 2;
-      }
-    }
-
-    // marketing classification
-    if (marketingScore >= 6 && !isActionable) {
-      bucket = 'marketing';
-      score = 5;
-      isActionable = false;
-      signals = ['Promotional email detected'];
-    }
-
-    // ============================================================
-    // 7️⃣ TIME SIGNAL
-    // ============================================================
+    // ---------------------------------------------------------
+    // 3️⃣ PHASE 3: PRIORITY CALCULATION
+    // ---------------------------------------------------------
+    int score = 0;
+    if (isSecurity) score += 90;
+    else if (isVIP) score += 40;
+    else if (isFinancial) score += 40; // Increased to match 'important' expectation
+    else if (isCalendar) score += 25;
+    else if (isReplyNeeded) score += 25;
+    
+    if (isCustom) score += 30;
+    if (isMarketing) score -= 40;
 
     if (emailTimestamp != null && emailTimestamp > 0) {
-      final emailAge = DateTime.now().difference(
-        DateTime.fromMillisecondsSinceEpoch(emailTimestamp),
-      );
-
-      if (emailAge.inDays >= 7) {
-        score += 10;
-        signals.add('Old unanswered email');
-      }
+      final emailAge = DateTime.now().difference(DateTime.fromMillisecondsSinceEpoch(emailTimestamp));
+      if (emailAge.inDays >= 7) score += 10;
     }
 
-    // ============================================================
-    // PRIORITY LABEL
-    // ============================================================
-
-    if (score > 100) score = 100;
-
+    score = score.clamp(0, 100);
     String priorityLabel;
-    if (score >= 50) {
-      priorityLabel = 'urgent';
-    } else if (score >= 25) {
-      priorityLabel = 'important';
-    } else if (score >= 10) {
-      priorityLabel = 'normal';
-    } else {
-      priorityLabel = 'low';
+    if (score >= 70) priorityLabel = 'urgent';
+    else if (score >= 40) priorityLabel = 'important';
+    else if (score >= 20) priorityLabel = 'normal';
+    else priorityLabel = 'low';
+
+    // ---------------------------------------------------------
+    // 4️⃣ PHASE 4: LABEL ASSIGNMENT
+    // ---------------------------------------------------------
+    String labelId = labelIdFromClassifier;
+    
+    if (isSecurity) labelId = 'security';
+    else if (isFinancial) labelId = 'finance';
+    else if (isCalendar) labelId = 'calendar';
+    else if (isReplyNeeded) labelId = 'work';
+    else if (isMarketing) labelId = 'marketing';
+    else if (labelId == 'personal' && !isVIP && !isCustom) {
+      final personalSalutations = ['hi', 'hello', 'hey', 'dear', 'thanks', 'regards', 'best'];
+      bool looksPersonal = personalSalutations.any((s) => snippetLower.startsWith(s) || subjectLower.startsWith(s));
+      if (!looksPersonal) labelId = 'general';
     }
 
-    if (signals.isEmpty) {
-      signals.add('No strong signals');
-    }
+    if (signals.isEmpty) signals.add('Generic');
 
     return {
       'bucket': bucket,
+      'label': labelId,
       'priorityScore': score,
-      'isActionable': isActionable,
+      'isActionable': isReplyNeeded || isCalendar || isSecurity || isFinancial,
       'priorityLabel': priorityLabel,
-      'signals': signals,
+      'signals': signals.toList(),
     };
+  }
+
+  static bool _hasKeywords(String subject, String snippet, List<String> keywords) {
+    return keywords.any((w) => subject.contains(w) || snippet.contains(w));
   }
 }

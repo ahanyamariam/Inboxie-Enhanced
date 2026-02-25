@@ -42,8 +42,9 @@ class SyncService {
 
       if (messageList.isEmpty) return 0;
 
-      // 2. Load VIP senders for priority scoring
+      // 2. Load VIP senders and custom labels for classification
       final vipSenders = _storage.getVipSenders();
+      final customLabels = _storage.getCustomLabels();
 
       // 3. Process each message
       List<Map<String, dynamic>> processedEmails = [];
@@ -55,17 +56,22 @@ class SyncService {
         final threadId = msg['threadId'] as String? ?? '';
 
         try {
-          // 3. Skip if already in DB
+          // 4. Fetch metadata from Gmail (needed for read status and content)
+          final metadata = await _gmail.fetchMessageMetadata(messageId);
+
+          // 5. Parse labelIds and read state
+          final labelIds = (metadata['labelIds'] as List<dynamic>?) ?? [];
+          final isRead = !labelIds.contains('UNREAD');
+
+          // 3. Update existing email if it's already in DB
           final exists = await _storage.emailExists(messageId);
           if (exists) {
+            await _storage.updateReadStatus(messageId, isRead);
             skipped++;
             continue;
           }
 
-          // 4. Fetch metadata from Gmail
-          final metadata = await _gmail.fetchMessageMetadata(messageId);
-
-          // 5. Parse headers
+          // 6. Parse headers
           String subject = '';
           String from = '';
           String senderEmail = '';
@@ -87,16 +93,17 @@ class SyncService {
           final snippet = metadata['snippet'] ?? '';
           final internalDate = int.parse(metadata['internalDate'] ?? '0');
 
-          // 6. Run Priority Scoring Engine
+          // 7. Run Priority Scoring Engine with label classification
           final analysis = IntelligenceService.analyze(
             subject: subject,
             snippet: snippet,
             from: from,
             vipSenders: vipSenders,
             emailTimestamp: internalDate,
+            customLabels: customLabels,
           );
 
-          // 7. Add to batch
+          // 8. Add to batch
           processedEmails.add({
             'id': messageId,
             'threadId': threadId,
@@ -106,17 +113,18 @@ class SyncService {
             'snippet': snippet,
             'timestamp': internalDate,
             'bucket': analysis['bucket'],
+            'label': analysis['label'],
             'priorityScore': analysis['priorityScore'],
             'priorityLabel': analysis['priorityLabel'],
             'isActionable': analysis['isActionable'] ? 1 : 0,
-            'isRead': 0,
+            'isRead': isRead ? 1 : 0,
             'status': 'open',
             'syncedAt': DateTime.now().millisecondsSinceEpoch,
             'signals': (analysis['signals'] as List<String>).join('||'),
           });
 
           processed++;
-          print('✅ $subject → ${analysis['priorityLabel'].toString().toUpperCase()} (${analysis['priorityScore']})');
+          print('✅ $subject → ${analysis['label']} / ${analysis['priorityLabel'].toString().toUpperCase()} (${analysis['priorityScore']})');
         } catch (e) {
           print('❌ Error: $messageId - $e');
           continue;
