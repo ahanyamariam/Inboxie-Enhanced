@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:app/core/theme/app_colors.dart';
 import 'package:app/services/gmail_service.dart';
 import 'package:app/services/storage_service.dart';
+import 'package:app/services/ai_service.dart';
 
 import 'package:app/models/thread_model.dart';
 import 'package:app/features/home/widgets/thread_message_card.dart';
@@ -33,6 +35,9 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
   bool _readStateChanged = false;
   String? _error;
   ThreadModel? _thread;
+  List<String> _replySuggestions = [];
+  bool _loadingSuggestions = false;
+  AIService? _aiService;
 
   final Set<String> _expandedMessages = {};
 
@@ -40,7 +45,13 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
   void initState() {
     super.initState();
     _gmailService = GmailService(accessToken: widget.accessToken);
+    _initAiService();
     _loadThread();
+  }
+
+  Future<void> _initAiService() async {
+    final prefs = await SharedPreferences.getInstance();
+    _aiService = AIService(prefs: prefs);
   }
 
   Future<void> _loadThread() async {
@@ -66,6 +77,9 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
       setState(() {
         _thread = thread;
       });
+
+      // Load AI reply suggestions in background
+      _loadReplySuggestions();
     } catch (e) {
       setState(() {
         _error = e.toString();
@@ -655,35 +669,66 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
     return RefreshIndicator(
       onRefresh: _loadThread,
       color: AppColors.primaryBlue,
-      child: ListView.builder(
+      child: ListView(
         padding: const EdgeInsets.all(16),
-        itemCount: _thread!.messages.length,
-        itemBuilder: (context, index) {
-          final message = _thread!.messages[index];
-          final isExpanded = _expandedMessages.contains(message.id);
-          final isLatest = index == _thread!.messages.length - 1;
+        children: [
+          // Thread messages
+          ...List.generate(_thread!.messages.length, (index) {
+            final message = _thread!.messages[index];
+            final isExpanded = _expandedMessages.contains(message.id);
+            final isLatest = index == _thread!.messages.length - 1;
 
-          return ThreadMessageCard(
-            message: message,
-            isExpanded: isExpanded,
-            isLatest: isLatest,
-            onTap: () => _toggleExpanded(message.id),
-            onReply: () {
-              // Reply to this specific message
-              showModalBottomSheet(
-                context: context,
-                isScrollControlled: true,
-                backgroundColor: Colors.transparent,
-                builder: (context) => ComposeSheet(
-                  mode: ComposeMode.reply,
-                  replyTo: message,
-                  threadId: widget.threadId,
-                  onSend: (to, subject, body) => _sendReply(to, subject, body),
-                ),
-              );
-            },
-          );
-        },
+            return ThreadMessageCard(
+              message: message,
+              isExpanded: isExpanded,
+              isLatest: isLatest,
+              onTap: () => _toggleExpanded(message.id),
+              onReply: () {
+                showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  backgroundColor: Colors.transparent,
+                  builder: (context) => ComposeSheet(
+                    mode: ComposeMode.reply,
+                    replyTo: message,
+                    threadId: widget.threadId,
+                    onSend: (to, subject, body) => _sendReply(to, subject, body),
+                  ),
+                );
+              },
+            );
+          }),
+
+          // AI Reply Suggestions
+          if (_loadingSuggestions)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.primaryBlue.withValues(alpha: 0.6),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Generating reply suggestions...',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else if (_replySuggestions.isNotEmpty)
+            _buildReplySuggestions(),
+        ],
       ),
     );
   }
@@ -730,6 +775,128 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Future<void> _loadReplySuggestions() async {
+    if (_aiService == null || _thread == null) return;
+    if (!_aiService!.isConfigured) return;
+
+    setState(() => _loadingSuggestions = true);
+
+    try {
+      final latest = _thread!.latestMessage;
+      final suggestions = await _aiService!.generateReplySuggestions(
+        subject: latest.subject,
+        content: latest.bodyPlain.isNotEmpty ? latest.bodyPlain : latest.snippet,
+      );
+
+      if (mounted) {
+        setState(() {
+          _replySuggestions = suggestions;
+          _loadingSuggestions = false;
+        });
+      }
+    } catch (e) {
+      print('Failed to load reply suggestions: $e');
+      if (mounted) setState(() => _loadingSuggestions = false);
+    }
+  }
+
+  Widget _buildReplySuggestions() {
+    return Container(
+      margin: const EdgeInsets.only(top: 8, bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.primaryBlue.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.primaryBlue.withValues(alpha: 0.15),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text('✨', style: TextStyle(fontSize: 16)),
+              const SizedBox(width: 8),
+              Text(
+                'AI Suggested Replies',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.primaryBlue,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ..._replySuggestions.map((suggestion) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Material(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                child: InkWell(
+                  onTap: () => _showReplyWithSuggestion(suggestion),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AppColors.primaryBlue.withValues(alpha: 0.2),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.reply_rounded,
+                          size: 16,
+                          color: AppColors.primaryBlue.withValues(alpha: 0.6),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            suggestion,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: AppColors.textPrimary,
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  void _showReplyWithSuggestion(String suggestion) {
+    if (_thread == null) return;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => ComposeSheet(
+        mode: ComposeMode.reply,
+        replyTo: _thread!.latestMessage,
+        threadId: widget.threadId,
+        initialBody: suggestion,
+        onSend: (to, subject, body) => _sendReply(to, subject, body),
       ),
     );
   }

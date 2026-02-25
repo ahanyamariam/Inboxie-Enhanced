@@ -1,13 +1,16 @@
 import 'package:app/services/gmail_service.dart';
 import 'package:app/services/storage_service.dart';
 import 'package:app/services/intelligence_service.dart';
+import 'package:app/services/ai_service.dart';
 
 class SyncService {
   final GmailService _gmail;
   final StorageService _storage = StorageService();
+  final AIService? _ai;
 
-  SyncService({required String accessToken})
-      : _gmail = GmailService(accessToken: accessToken);
+  SyncService({required String accessToken, AIService? aiService})
+      : _gmail = GmailService(accessToken: accessToken),
+        _ai = aiService;
 
   // TIER 1: Quick Sync (first load)
   Future<int> quickSync() async {
@@ -136,6 +139,12 @@ class SyncService {
         await _storage.saveEmails(processedEmails);
       }
 
+      // 9. Generate AI summaries (non-blocking, after save)
+      final ai = _ai;
+      if (ai != null && ai.isConfigured && processedEmails.isNotEmpty) {
+        _generateAiSummaries(ai, processedEmails);
+      }
+
       final total = await _storage.getEmailCount();
       print('═══════════════════════════════════');
       print('New: $processed | Skipped: $skipped | Total in DB: $total');
@@ -146,5 +155,31 @@ class SyncService {
       print('Sync Error: $e');
       rethrow;
     }
+  }
+
+  /// Generate AI summaries in the background after sync completes.
+  Future<void> _generateAiSummaries(AIService ai, List<Map<String, dynamic>> emails) async {
+    if (!ai.isConfigured) return;
+
+    print('🤖 Generating AI summaries for ${emails.length} emails...');
+    int success = 0;
+
+    for (var email in emails) {
+      try {
+        final summary = await ai.generateSummary(
+          subject: email['subject'] ?? '',
+          snippet: email['snippet'] ?? '',
+        );
+        if (summary != null) {
+          await _storage.updateAiData(email['id'], aiSummary: summary);
+          success++;
+          print('✨ AI Summary: ${email['subject']} → $summary');
+        }
+      } catch (e) {
+        print('🤖 AI Error for ${email['id']}: $e');
+      }
+    }
+
+    print('🤖 AI summaries generated: $success/${emails.length}');
   }
 }

@@ -19,6 +19,7 @@ class EmailModel {
   final String? avatarUrl;
   final List<String> signals;
   final String? classification;
+  final String? aiSummary;
 
   EmailModel({
     required this.id,
@@ -35,6 +36,7 @@ class EmailModel {
     this.avatarUrl,
     this.signals = const [],
     this.classification,
+    this.aiSummary,
   });
 
   String get timeAgo {
