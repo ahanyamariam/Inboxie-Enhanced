@@ -39,7 +39,7 @@ class StorageService {
 
     return await openDatabase(
       path,
-      version: 8,
+      version: 9,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE emails (
@@ -58,7 +58,9 @@ class StorageService {
             isRead INTEGER DEFAULT 0,
             status TEXT DEFAULT 'open',
             syncedAt INTEGER,
-            signals TEXT DEFAULT '[]'
+            signals TEXT DEFAULT '[]',
+            aiSummary TEXT,
+            replySuggestions TEXT
           )
         ''');
 
@@ -72,7 +74,7 @@ class StorageService {
           )
         ''');
 
-        print('Database tables created (v8)!');
+        print('Database tables created (v9)!');
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -287,6 +289,16 @@ class StorageService {
           }
           print('v8 migration: Successfully re-classified ${rows.length} emails.');
         }
+        if (oldVersion < 9) {
+          // v9: Add AI columns
+          try {
+            await db.execute("ALTER TABLE emails ADD COLUMN aiSummary TEXT");
+          } catch (_) { /* column may already exist */ }
+          try {
+            await db.execute("ALTER TABLE emails ADD COLUMN replySuggestions TEXT");
+          } catch (_) { /* column may already exist */ }
+          print('v9 migration: Added AI columns (aiSummary, replySuggestions)');
+        }
       },
     );
   }
@@ -444,6 +456,26 @@ class StorageService {
   Future<void> updateBucket(String id, String newBucket) async {
     final db = await database;
     await db.update('emails', {'bucket': newBucket}, where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<void> updateAiData(String id, {String? aiSummary, List<String>? replySuggestions}) async {
+    final db = await database;
+    final data = <String, dynamic>{};
+    if (aiSummary != null) data['aiSummary'] = aiSummary;
+    if (replySuggestions != null) data['replySuggestions'] = replySuggestions.join('||');
+    if (data.isNotEmpty) {
+      await db.update('emails', data, where: 'id = ?', whereArgs: [id]);
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getEmailsWithoutSummary({int limit = 20}) async {
+    final db = await database;
+    return await db.query(
+      'emails',
+      where: 'aiSummary IS NULL',
+      orderBy: 'timestamp DESC',
+      limit: limit,
+    );
   }
 
   // ==========================================

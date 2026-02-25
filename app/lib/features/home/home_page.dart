@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:app/core/theme/app_colors.dart';
 import 'package:app/models/email_model.dart';
 import 'package:app/features/home/widgets/header_banner.dart';
@@ -13,6 +14,7 @@ import 'package:app/features/profile/screens/profile_screen.dart';
 import 'package:app/services/storage_service.dart';
 import 'package:app/services/sync_service.dart';
 import 'package:app/services/gmail_service.dart';
+import 'package:app/services/ai_service.dart';
 import 'package:app/features/home/widgets/compose_sheet.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -37,9 +39,15 @@ class _HomeScreenState extends State<HomeScreen> {
   final StorageService _storage = StorageService();
   late final SyncService _syncService;
   late final GmailService _gmailService;
+  AIService? _aiService;
   bool _isLoading = true;
   String? _error;
   List<EmailModel> _emails = [];
+
+  // Search State
+  bool _isSearchActive = false;
+  String _searchQuery = '';
+  final TextEditingController _searchController = TextEditingController();
 
   // UI State
   int _selectedTabIndex = 1; // Default to "Action" tab
@@ -49,10 +57,40 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _syncService = SyncService(accessToken: widget.accessToken);
     _gmailService = GmailService(accessToken: widget.accessToken);
-    _loadFromDatabase(); // Load cached data instantly
-    _runSync();          // Then fetch new emails from Gmail
+    _searchController.addListener(_onSearchChanged);
+    _initServices();
+  }
+
+  @override
+  void dispose() {
+    _searchController.removeListener(_onSearchChanged);
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged() {
+    setState(() {
+      _searchQuery = _searchController.text;
+    });
+  }
+
+  Future<void> _initServices() async {
+    final prefs = await SharedPreferences.getInstance();
+    _aiService = AIService(prefs: prefs);
+
+    // Set API key if not already configured
+    if (!_aiService!.isConfigured) {
+      await _aiService!.setApiKey('***REMOVED***');
+    }
+
+    _syncService = SyncService(
+      accessToken: widget.accessToken,
+      aiService: _aiService,
+    );
+
+    _loadFromDatabase();
+    _runSync();
   }
 
   // Future<void> _fetchEmails() async {
@@ -271,6 +309,7 @@ class _HomeScreenState extends State<HomeScreen> {
       avatarColor: avatarColors[(data['id'] ?? '').hashCode.abs() % avatarColors.length],
       signals: signals,
       classification: data['label'],
+      aiSummary: data['aiSummary'],
     );
   }
   String _getInitials(String name) {
@@ -287,20 +326,42 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   List<EmailModel> get _filteredEmails {
-    switch (_selectedTabIndex) {
-      case 0: // All
-        return _emails;
-      case 1: // Action
-        return _emails.where((e) => e.actionType != ActionType.none).toList();
-      case 2: // Urgent
-        return _emails.where((e) => e.priority == Priority.urgent).toList();
-      case 3: // Important
-        return _emails.where((e) => e.priority == Priority.important).toList();
-      case 4: // Low
-        return _emails.where((e) => e.priority == Priority.low).toList();
-      default:
-        return _emails;
+    List<EmailModel> baseList;
+    
+    // If searching, we search across ALL emails regardless of tab
+    if (_isSearchActive && _searchQuery.isNotEmpty) {
+      baseList = _emails;
+    } else {
+      switch (_selectedTabIndex) {
+        case 0: // All
+          baseList = _emails;
+          break;
+        case 1: // Action
+          baseList = _emails.where((e) => e.actionType != ActionType.none).toList();
+          break;
+        case 2: // Urgent
+          baseList = _emails.where((e) => e.priority == Priority.urgent).toList();
+          break;
+        case 3: // Important
+          baseList = _emails.where((e) => e.priority == Priority.important).toList();
+          break;
+        case 4: // Low
+          baseList = _emails.where((e) => e.priority == Priority.low).toList();
+          break;
+        default:
+          baseList = _emails;
+      }
     }
+
+    if (_searchQuery.isEmpty) return baseList;
+
+    final query = _searchQuery.toLowerCase();
+    return baseList.where((email) {
+      return email.subject.toLowerCase().contains(query) ||
+          email.senderName.toLowerCase().contains(query) ||
+          email.preview.toLowerCase().contains(query) ||
+          (email.aiSummary?.toLowerCase().contains(query) ?? false);
+    }).toList();
   }
 
   void _showEmailCountSelector() {
@@ -513,16 +574,20 @@ class _HomeScreenState extends State<HomeScreen> {
         // Header Banner with Tabs
         HeaderBanner(
           selectedTabIndex: _selectedTabIndex,
+          isSearchActive: _isSearchActive,
+          searchController: _searchController,
           onTabSelected: (index) {
             setState(() {
               _selectedTabIndex = index;
             });
           },
           onSearchTap: () {
-            // TODO: Implement search
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Search functionality')),
-            );
+            setState(() {
+              _isSearchActive = !_isSearchActive;
+              if (!_isSearchActive) {
+                _searchController.clear();
+              }
+            });
           },
           onProfileTap: () {
             _showEmailCountSelector();
@@ -588,6 +653,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildEmailList() {
+    final filtered = _filteredEmails;
+
     return RefreshIndicator(
       onRefresh: _runSync,
       color: AppColors.primaryBlue,
@@ -598,20 +665,75 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             const SizedBox(height: 24),
 
-            // Email Count Indicator
-            _buildEmailCountIndicator(),
-            const SizedBox(height: 16),
+            if (_isSearchActive) ...[
+              // Search Results View
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Text(
+                  filtered.isEmpty
+                      ? 'No results for "$_searchQuery"'
+                      : 'Search results for "$_searchQuery"',
+                  style: TextStyle(
+                    color: AppColors.getTextSecondary(context),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              if (filtered.isNotEmpty)
+                ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: filtered.length,
+                  itemBuilder: (context, index) {
+                    return InboxListItem(
+                      email: filtered[index],
+                      onTap: () => _navigateToEmailDetail(filtered[index]),
+                    );
+                  },
+                )
+              else
+                _buildSearchEmptyState(),
+            ] else ...[
+              // Normal Dashboard View
+              _buildEmailCountIndicator(),
+              const SizedBox(height: 16),
 
-            // Needs Action Section
-            if (_actionEmails.isNotEmpty) ...[
-              _buildNeedsActionSection(),
-              const SizedBox(height: 32),
+              // Needs Action Section
+              if (_actionEmails.isNotEmpty) ...[
+                _buildNeedsActionSection(),
+                const SizedBox(height: 32),
+              ],
+
+              // Recent Inbox Section
+              _buildRecentInboxSection(),
             ],
-
-            // Recent Inbox Section
-            _buildRecentInboxSection(),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildSearchEmptyState() {
+    return Center(
+      child: Column(
+        children: [
+          const SizedBox(height: 60),
+          Icon(
+            Icons.search_off_rounded,
+            size: 64,
+            color: AppColors.getTextSecondary(context).withValues(alpha: 0.2),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'We couldn\'t find anything matching your search.',
+            style: TextStyle(
+              color: AppColors.getTextSecondary(context),
+              fontSize: 15,
+            ),
+          ),
+        ],
       ),
     );
   }

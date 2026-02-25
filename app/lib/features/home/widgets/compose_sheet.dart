@@ -13,6 +13,7 @@ class ComposeSheet extends StatefulWidget {
   final ComposeMode mode;
   final EmailDetailModel? replyTo;
   final String? threadId;
+  final String? initialBody;
   final Function(String to, String subject, String body) onSend;
 
   const ComposeSheet({
@@ -20,6 +21,7 @@ class ComposeSheet extends StatefulWidget {
     required this.mode,
     this.replyTo,
     this.threadId,
+    this.initialBody,
     required this.onSend,
   });
 
@@ -49,6 +51,9 @@ class _ComposeSheetState extends State<ComposeSheet> {
           _subjectController.text = msg.subject.startsWith('Re:')
               ? msg.subject
               : 'Re: ${msg.subject}';
+          if (widget.initialBody != null) {
+            _bodyController.text = widget.initialBody!;
+          }
           break;
 
         case ComposeMode.replyAll:

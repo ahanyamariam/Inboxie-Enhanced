@@ -85,17 +85,38 @@ class InboxListItem extends StatelessWidget {
 
                   const SizedBox(height: 4),
 
-                  // Row 3: Preview
-                  Text(
-                    email.preview,
-                    style: TextStyle(
-                      color: AppColors.getTextSecondary(context),
-                      fontSize: 13,
-                      height: 1.4,
+                  // Row 3: Preview or AI Summary
+                  if (email.aiSummary != null && email.aiSummary!.isNotEmpty)
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('✨ ', style: TextStyle(fontSize: 13)),
+                        Expanded(
+                          child: Text(
+                            email.aiSummary!,
+                            style: TextStyle(
+                              color: AppColors.primaryBlue.withValues(alpha: 0.85),
+                              fontSize: 13,
+                              height: 1.4,
+                              fontStyle: FontStyle.italic,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    )
+                  else
+                    Text(
+                      email.preview,
+                      style: TextStyle(
+                        color: AppColors.getTextSecondary(context),
+                        fontSize: 13,
+                        height: 1.4,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
 
                   const SizedBox(height: 10),
 
