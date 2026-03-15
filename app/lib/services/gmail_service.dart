@@ -215,6 +215,21 @@ class GmailService {
       }),
     );
   }
+
+  /// Fetch an attachment by message ID and attachment ID
+  Future<String?> fetchAttachment(String messageId, String attachmentId) async {
+    final response = await http.get(
+      Uri.parse('$_baseUrl/messages/$messageId/attachments/$attachmentId'),
+      headers: _headers,
+    );
+
+    if (response.statusCode != 200) {
+      throw GmailApiException('Failed to fetch attachment: ${response.statusCode}');
+    }
+
+    final data = json.decode(response.body);
+    return data['data'] as String?;
+  }
 }
 
 class GmailApiException implements Exception {

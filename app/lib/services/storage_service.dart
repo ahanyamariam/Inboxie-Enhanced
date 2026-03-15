@@ -435,6 +435,17 @@ class StorageService {
     return result.isNotEmpty;
   }
 
+  Future<Map<String, dynamic>?> getEmailById(String id) async {
+    final db = await database;
+    final result = await db.query(
+      'emails',
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    return result.isNotEmpty ? result.first : null;
+  }
+
   Future<int> getEmailCount() async {
     final db = await database;
     final result = await db.rawQuery('SELECT COUNT(*) as count FROM emails');

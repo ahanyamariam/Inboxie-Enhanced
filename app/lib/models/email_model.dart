@@ -12,6 +12,8 @@ enum ActionType {
   billing,         // Invoice, receipt, payment
   deadline,        // Due date, deadline detected
   followUp,        // Waiting for reply
+  tracking,        // Shipping, delivery, package tracking
+  travel,          // Flight, hotel, reservation
   none,            // No action tag
 }
 
@@ -60,4 +62,30 @@ class EmailModel {
     if (diff.inDays < 7) return '${diff.inDays}d ago';
     return '${timestamp.day}/${timestamp.month}';
   }
+
+  /// Map intelligence signals to the most appropriate ActionType.
+  /// Priority: Security > VIP > Meeting > Billing > Action > Promotional
+  static ActionType determineActionType(List<String> signals, String bucket) {
+    if (signals.any((s) => s.contains('Security'))) return ActionType.securityAlert;
+    if (signals.any((s) => s.contains('VIP'))) return ActionType.vipSender;
+    if (signals.any((s) => s.contains('Calendar') || s.contains('Meeting'))) return ActionType.meeting;
+    if (signals.any((s) => s.contains('Shipping') || s.contains('Delivery') || s.contains('Tracking'))) return ActionType.tracking;
+    if (signals.any((s) => s.contains('Travel') || s.contains('Flight') || s.contains('Hotel') || s.contains('Booking'))) return ActionType.travel;
+    if (signals.any((s) => s.contains('Finance') || s.contains('Transaction'))) return ActionType.billing;
+    if (signals.any((s) => s.contains('Action required'))) return ActionType.actionRequired;
+    if (signals.any((s) => s.contains('Promotional'))) return ActionType.promotional;
+    if (signals.any((s) => s.contains('Muted'))) return ActionType.promotional;
+
+    // Fallback: use bucket if no signal matched
+    switch (bucket) {
+      case 'needs_reply': return ActionType.actionRequired;
+      case 'transactions': return ActionType.billing;
+      case 'events': return ActionType.meeting;
+      case 'promotions': return ActionType.promotional;
+      case 'shipping': return ActionType.tracking;
+      case 'travel': return ActionType.travel;
+      default: return ActionType.none;
+    }
+  }
 }
+

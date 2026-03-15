@@ -285,7 +285,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final signals = signalsRaw.isNotEmpty
         ? signalsRaw.split('||').where((s) => s.isNotEmpty).toList()
         : <String>[];
-    ActionType type = _signalsToActionType(signals, data['bucket'] as String? ?? '');
+    ActionType type = EmailModel.determineActionType(signals, data['bucket'] as String? ?? '');
 
     // Map priorityLabel from DB (with score-based fallback)
     Priority priority;
@@ -342,26 +342,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// Map intelligence signals to the most appropriate ActionType.
-  /// Priority: Security > VIP > Meeting > Billing > Deadline > Action > Newsletter > Promotional > Follow-up
-  ActionType _signalsToActionType(List<String> signals, String bucket) {
-    if (signals.any((s) => s.contains('Security'))) return ActionType.securityAlert;
-    if (signals.any((s) => s.contains('VIP'))) return ActionType.vipSender;
-    if (signals.any((s) => s.contains('Calendar') || s.contains('Meeting'))) return ActionType.meeting;
-    if (signals.any((s) => s.contains('Finance') || s.contains('Transaction'))) return ActionType.billing;
-    if (signals.any((s) => s.contains('Action required'))) return ActionType.actionRequired;
-    if (signals.any((s) => s.contains('Promotional'))) return ActionType.promotional;
-    if (signals.any((s) => s.contains('Muted'))) return ActionType.promotional;
 
-    // Fallback: use bucket if no signal matched
-    switch (bucket) {
-      case 'needs_reply': return ActionType.actionRequired;
-      case 'transactions': return ActionType.billing;
-      case 'events': return ActionType.meeting;
-      case 'promotions': return ActionType.promotional;
-      default: return ActionType.none;
-    }
-  }
 
   String _getInitials(String name) {
     if (name.isEmpty) return 'U';

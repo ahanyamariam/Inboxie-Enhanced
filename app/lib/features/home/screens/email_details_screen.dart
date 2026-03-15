@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:app/core/theme/app_colors.dart';
 import 'package:app/services/gmail_service.dart';
 import 'package:app/services/storage_service.dart';
 import 'package:app/services/ai_service.dart';
 
 import 'package:app/models/thread_model.dart';
+import 'package:app/models/email_model.dart';
 import 'package:app/features/home/widgets/thread_message_card.dart';
 import 'package:app/features/home/widgets/compose_sheet.dart';
 
@@ -64,6 +66,45 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
       final threadData = await _gmailService.fetchThread(widget.threadId);
       final thread = ThreadModel.fromGmailApi(threadData);
 
+      // Enhance the API thread with our local intelligence data (signals/ActionType)
+      for (int i = 0; i < thread.messages.length; i++) {
+        final msg = thread.messages[i];
+        final localData = await _storage.getEmailById(msg.id);
+        if (localData != null) {
+          final signalsRaw = localData['signals'] as String? ?? '';
+          final signals = signalsRaw.isNotEmpty
+              ? signalsRaw.split('||').where((s) => s.isNotEmpty).toList()
+              : <String>[];
+          final bucket = localData['bucket'] as String? ?? '';
+          
+          final actionType = EmailModel.determineActionType(signals, bucket);
+
+          // We replace the message with a copied instance containing the actionType
+          thread.messages[i] = EmailDetailModel(
+            id: msg.id,
+            threadId: msg.threadId,
+            subject: msg.subject,
+            from: msg.from,
+            fromEmail: msg.fromEmail,
+            fromName: msg.fromName,
+            to: msg.to,
+            cc: msg.cc,
+            date: msg.date,
+            bodyPlain: msg.bodyPlain,
+            bodyHtml: msg.bodyHtml,
+            snippet: msg.snippet,
+            attachments: msg.attachments,
+            labelIds: msg.labelIds,
+            isUnread: msg.isUnread,
+            isStarred: msg.isStarred,
+            messageIdHeader: msg.messageIdHeader,
+            inReplyTo: msg.inReplyTo,
+            references: msg.references,
+            actionType: actionType,
+          );
+        }
+      }
+
       // Mark latest message as read (Gmail API + local DB)
       if (thread.latestMessage.isUnread) {
         await _gmailService.markAsRead(thread.latestMessage.id);
@@ -116,7 +157,7 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
     });
   }
 
-  void _showReplySheet({bool replyAll = false}) {
+  void _showReplySheet({bool replyAll = false, String? initialBody}) {
     if (_thread == null) return;
 
     showModalBottomSheet(
@@ -699,6 +740,10 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
             );
           }),
 
+          // Suggested Actions Feature
+          if (_thread != null && _thread!.latestMessage.actionType != ActionType.none)
+            _buildSuggestedActions(_thread!.latestMessage),
+
           // AI Reply Suggestions
           if (_loadingSuggestions)
             Padding(
@@ -777,6 +822,289 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildSuggestedActions(EmailDetailModel message) {
+    if (message.actionType == ActionType.none) return const SizedBox.shrink();
+
+    final List<Widget> actionChips = [];
+
+    // 1. Meeting / Event
+    if (message.actionType == ActionType.meeting) {
+      actionChips.add(
+        _SuggestedActionChip(
+          icon: Icons.edit_calendar_rounded,
+          label: 'Add to Calendar',
+          color: const Color(0xFF9C27B0), // Purple
+          onTap: () async {
+            // Create a Google Calendar template URL
+            final text = Uri.encodeComponent(message.subject);
+            final details = Uri.encodeComponent('From email: ${message.fromName} (${message.fromEmail})');
+            final url = Uri.parse('https://calendar.google.com/calendar/render?action=TEMPLATE&text=$text&details=$details');
+            try {
+              await launchUrl(url, mode: LaunchMode.externalApplication);
+            } catch (e) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Could not open calendar')),
+                );
+              }
+            }
+          },
+        ),
+      );
+    }
+
+    // 2. Needs Action / Direct Question / Follow Up
+    if (message.actionType == ActionType.actionRequired || 
+        message.actionType == ActionType.followUp) {
+      actionChips.add(
+        _SuggestedActionChip(
+          icon: Icons.reply_rounded,
+          label: 'Quick Reply',
+          color: AppColors.primaryBlue,
+          onTap: _showReplySheet,
+        ),
+      );
+    }
+
+    // 3. Billing / Transaction — improved to open PDF or payment link
+    if (message.actionType == ActionType.billing) {
+      // Check for PDF attachments first
+      final pdfAttachment = message.attachments.where(
+        (a) => a.mimeType == 'application/pdf' || a.filename.toLowerCase().endsWith('.pdf'),
+      );
+
+      if (pdfAttachment.isNotEmpty) {
+        actionChips.add(
+          _SuggestedActionChip(
+            icon: Icons.picture_as_pdf_rounded,
+            label: 'Open Invoice (${pdfAttachment.first.formattedSize})',
+            color: const Color(0xFFE53935), // Red for PDF
+            onTap: () async {
+              // Open PDF attachment via Gmail API download
+              try {
+                final attachmentData = await _gmailService.fetchAttachment(
+                  message.id,
+                  pdfAttachment.first.id,
+                );
+                if (attachmentData != null && mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Downloaded ${pdfAttachment.first.filename}'),
+                      backgroundColor: Colors.green[600],
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to download: $e')),
+                  );
+                }
+              }
+            },
+          ),
+        );
+      }
+
+      // Also look for billing/payment links in the email body
+      final paymentUrl = _extractUrlByKeywords(
+        message.bodyHtml.isNotEmpty ? message.bodyHtml : message.bodyPlain,
+        ['pay', 'invoice', 'receipt', 'bill', 'statement', 'payment'],
+      );
+
+      if (paymentUrl != null) {
+        actionChips.add(
+          _SuggestedActionChip(
+            icon: Icons.payment_rounded,
+            label: 'Open Payment Link',
+            color: const Color(0xFF4CAF50), // Green
+            onTap: () async {
+              try {
+                await launchUrl(Uri.parse(paymentUrl), mode: LaunchMode.externalApplication);
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Could not open payment link')),
+                  );
+                }
+              }
+            },
+          ),
+        );
+      } else if (pdfAttachment.isEmpty) {
+        // Fallback: no PDF, no link — generic action
+        actionChips.add(
+          _SuggestedActionChip(
+            icon: Icons.receipt_long_rounded,
+            label: 'View Invoice',
+            color: const Color(0xFF4CAF50),
+            onTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Invoice details are in the email body below')),
+              );
+            },
+          ),
+        );
+      }
+    }
+
+    // 4. Tracking / Shipping
+    if (message.actionType == ActionType.tracking) {
+      final trackingUrl = _extractUrlByKeywords(
+        message.bodyHtml.isNotEmpty ? message.bodyHtml : message.bodyPlain,
+        ['track', 'shipping', 'delivery', 'carrier', 'package', 'shipment', 'ups', 'fedex', 'dhl', 'usps'],
+      );
+
+      actionChips.add(
+        _SuggestedActionChip(
+          icon: Icons.local_shipping_rounded,
+          label: 'Track Package',
+          color: const Color(0xFFFF9800), // Orange
+          onTap: () async {
+            if (trackingUrl != null) {
+              try {
+                await launchUrl(Uri.parse(trackingUrl), mode: LaunchMode.externalApplication);
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Could not open tracking link')),
+                  );
+                }
+              }
+            } else {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('No tracking link found — check email body')),
+                );
+              }
+            }
+          },
+        ),
+      );
+    }
+
+    // 5. Travel / Flight / Hotel
+    if (message.actionType == ActionType.travel) {
+      final travelUrl = _extractUrlByKeywords(
+        message.bodyHtml.isNotEmpty ? message.bodyHtml : message.bodyPlain,
+        ['check-in', 'checkin', 'boarding', 'itinerary', 'reservation', 'booking', 'flight', 'hotel'],
+      );
+
+      actionChips.add(
+        _SuggestedActionChip(
+          icon: Icons.flight_takeoff_rounded,
+          label: travelUrl != null ? 'Check In' : 'View Reservation',
+          color: const Color(0xFF00BCD4), // Cyan
+          onTap: () async {
+            if (travelUrl != null) {
+              try {
+                await launchUrl(Uri.parse(travelUrl), mode: LaunchMode.externalApplication);
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Could not open travel link')),
+                  );
+                }
+              }
+            } else {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('No check-in link found — check email body')),
+                );
+              }
+            }
+          },
+        ),
+      );
+    }
+
+    // 6. Universal "Mark Handled"
+    actionChips.add(
+      _SuggestedActionChip(
+        icon: Icons.task_alt_rounded,
+        label: 'Mark Handled',
+        color: Colors.grey[700]!,
+        isOutlined: true,
+        onTap: _handleArchive, // Archiving removes it from the immediate action queue
+      ),
+    );
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 16, bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.bolt_rounded,
+                size: 16,
+                color: AppColors.accentYellow,
+              ),
+              const SizedBox(width: 6),
+              const Text(
+                'Suggested Actions',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textSecondary,
+                  letterSpacing: 0.3,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: actionChips.map((chip) => Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: chip,
+              )).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Extract the first URL from email body whose surrounding text matches any of the given keywords.
+  /// Searches both HTML href attributes and plain-text URLs.
+  String? _extractUrlByKeywords(String body, List<String> keywords) {
+    if (body.isEmpty) return null;
+
+    // 1. Try HTML href links first — look for <a href="URL">...keyword...</a>
+    final hrefRegex = RegExp(
+      r'<a\s[^>]*href=["\x27]([^"\x27]+)["\x27][^>]*>(.*?)</a>',
+      caseSensitive: false,
+    );
+    for (final match in hrefRegex.allMatches(body)) {
+      final url = match.group(1) ?? '';
+      final linkText = match.group(2) ?? '';
+      final combined = '$url $linkText'.toLowerCase();
+
+      if (url.startsWith('http') && keywords.any((k) => combined.contains(k.toLowerCase()))) {
+        return url;
+      }
+    }
+
+    // 2. Fallback: plain-text URLs near keywords
+    final urlRegex = RegExp(r'https?://[^\s<>"]+', caseSensitive: false);
+    for (final match in urlRegex.allMatches(body)) {
+      final url = match.group(0) ?? '';
+      // Check a 200-char window around the URL for keyword context
+      final start = (match.start - 100).clamp(0, body.length);
+      final end = (match.end + 100).clamp(0, body.length);
+      final context = body.substring(start, end).toLowerCase();
+
+      if (keywords.any((k) => context.contains(k.toLowerCase()))) {
+        return url;
+      }
+    }
+
+    return null;
   }
 
   Future<void> _loadReplySuggestions() async {
@@ -942,6 +1270,61 @@ class _BottomActionButton extends StatelessWidget {
                   color: isPrimary ? Colors.white : AppColors.primaryBlue,
                   fontWeight: FontWeight.w600,
                   fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SuggestedActionChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+  final bool isOutlined;
+
+  const _SuggestedActionChip({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+    this.isOutlined = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: isOutlined ? Colors.transparent : color.withValues(alpha: 0.1),
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: isOutlined ? Border.all(color: color.withValues(alpha: 0.3)) : null,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 16,
+                color: color,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ],
