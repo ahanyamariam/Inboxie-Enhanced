@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -38,6 +39,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final StorageService _storage = StorageService();
   late final SyncService _syncService;
+  Timer? _autoSyncTimer;
   late final GmailService _gmailService;
   AIService? _aiService;
   bool _isLoading = true;
@@ -50,7 +52,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
 
   // UI State
-  int _selectedTabIndex = 1; // Default to "Action" tab
+  int _selectedTabIndex = 0; // Default to "All" tab
   int _bottomNavIndex = 0; // Default to "Home"
   int _maxResults = 10; // Email count selector
 
@@ -64,6 +66,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    _autoSyncTimer?.cancel();
     _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
     super.dispose();
@@ -91,6 +94,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
     _loadFromDatabase();
     _runSync();
+
+    // Auto-sync every 30 seconds for new emails
+    _autoSyncTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      print('⏰ Auto-sync triggered');
+      _runSync();
+    });
   }
 
   // Future<void> _fetchEmails() async {
@@ -297,7 +306,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return EmailModel(
       id: data['id'] ?? '',
-      threadId: data['threadId'] ?? '',
+      threadId: data['thread_id'] ?? '',
       senderName: data['senderName'] ?? 'Unknown Sender',
       senderInitials: _getInitials(data['senderName'] ?? ''),
       subject: data['subject'] ?? '(No Subject)',

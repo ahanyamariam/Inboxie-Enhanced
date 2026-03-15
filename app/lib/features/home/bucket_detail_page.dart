@@ -84,7 +84,7 @@ class _BucketDetailPageState extends State<BucketDetailPage> {
 
     return EmailModel(
       id: data['id'] ?? '',
-      threadId: data['threadId'] ?? '',
+      threadId: data['thread_id'] ?? '',
       senderName: senderName,
       senderInitials: senderInitials,
       subject: data['subject'] ?? '(No Subject)',
