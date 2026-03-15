@@ -14,7 +14,7 @@ class ActionTypeChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: AppColors.primaryBlue,
+        color: _backgroundColor,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -22,14 +22,14 @@ class ActionTypeChip extends StatelessWidget {
         children: [
           Icon(
             _icon,
-            color: AppColors.accentYellow,
+            color: _foregroundColor,
             size: 14,
           ),
           const SizedBox(width: 6),
           Text(
             _label,
-            style: const TextStyle(
-              color: AppColors.accentYellow,
+            style: TextStyle(
+              color: _foregroundColor,
               fontSize: 11,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.3,
@@ -42,14 +42,24 @@ class ActionTypeChip extends StatelessWidget {
 
   String get _label {
     switch (actionType) {
-      case ActionType.directQuestion:
-        return 'DIRECT QUESTION';
-      case ActionType.deadline:
-        return 'DEADLINE';
-      case ActionType.waitingReply:
-        return 'WAITING REPLY';
+      case ActionType.securityAlert:
+        return 'SECURITY ALERT';
+      case ActionType.vipSender:
+        return 'VIP';
+      case ActionType.meeting:
+        return 'MEETING / EVENT';
+      case ActionType.newsletter:
+        return 'NEWSLETTER';
+      case ActionType.promotional:
+        return 'PROMOTIONAL';
+      case ActionType.actionRequired:
+        return 'NEEDS ACTION';
       case ActionType.billing:
         return 'BILLING';
+      case ActionType.deadline:
+        return 'DEADLINE';
+      case ActionType.followUp:
+        return 'FOLLOW UP';
       case ActionType.none:
         return '';
     }
@@ -57,16 +67,62 @@ class ActionTypeChip extends StatelessWidget {
 
   IconData get _icon {
     switch (actionType) {
-      case ActionType.directQuestion:
-        return Icons.help_outline_rounded;
-      case ActionType.deadline:
-        return Icons.schedule_rounded;
-      case ActionType.waitingReply:
-        return Icons.hourglass_empty_rounded;
+      case ActionType.securityAlert:
+        return Icons.shield_rounded;
+      case ActionType.vipSender:
+        return Icons.star_rounded;
+      case ActionType.meeting:
+        return Icons.event_rounded;
+      case ActionType.newsletter:
+        return Icons.newspaper_rounded;
+      case ActionType.promotional:
+        return Icons.local_offer_rounded;
+      case ActionType.actionRequired:
+        return Icons.reply_rounded;
       case ActionType.billing:
         return Icons.receipt_long_rounded;
+      case ActionType.deadline:
+        return Icons.schedule_rounded;
+      case ActionType.followUp:
+        return Icons.hourglass_empty_rounded;
       case ActionType.none:
         return Icons.circle;
+    }
+  }
+
+  Color get _backgroundColor {
+    switch (actionType) {
+      case ActionType.securityAlert:
+        return const Color(0xFFD32F2F); // Red
+      case ActionType.vipSender:
+        return const Color(0xFFF59E0B); // Amber
+      case ActionType.meeting:
+        return const Color(0xFF7C3AED); // Purple
+      case ActionType.newsletter:
+        return const Color(0xFF0D9488); // Teal
+      case ActionType.promotional:
+        return const Color(0xFF9CA3AF); // Gray
+      case ActionType.actionRequired:
+        return AppColors.primaryBlue;
+      case ActionType.billing:
+        return const Color(0xFF059669); // Green
+      case ActionType.deadline:
+        return const Color(0xFFEA580C); // Orange
+      case ActionType.followUp:
+        return const Color(0xFF6366F1); // Indigo
+      case ActionType.none:
+        return Colors.transparent;
+    }
+  }
+
+  Color get _foregroundColor {
+    switch (actionType) {
+      case ActionType.promotional:
+        return Colors.white;
+      case ActionType.vipSender:
+        return const Color(0xFF78350F); // Dark amber text
+      default:
+        return Colors.white;
     }
   }
 }

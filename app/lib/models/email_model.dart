@@ -2,7 +2,18 @@ import 'package:flutter/material.dart';
 
 enum Priority { urgent, important, low, action }
 
-enum ActionType { directQuestion, deadline, waitingReply, billing, none }
+enum ActionType {
+  securityAlert,   // OTP, password reset, 2FA
+  vipSender,       // From VIP list
+  meeting,         // Calendar, event, invite
+  newsletter,      // Newsletter digest
+  promotional,     // Marketing, sales, offers
+  actionRequired,  // Needs a reply or action
+  billing,         // Invoice, receipt, payment
+  deadline,        // Due date, deadline detected
+  followUp,        // Waiting for reply
+  none,            // No action tag
+}
 
 class EmailModel {
   final String id;

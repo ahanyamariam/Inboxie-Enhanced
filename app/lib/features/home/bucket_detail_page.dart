@@ -68,12 +68,11 @@ class _BucketDetailPageState extends State<BucketDetailPage> {
         else priority = Priority.low;
     }
 
-    ActionType type = ActionType.none;
-    switch (data['bucket']) {
-      case 'needs_reply': type = ActionType.directQuestion; break;
-      case 'transactions': type = ActionType.billing; break;
-      case 'events': type = ActionType.deadline; break;
-    }
+    final signalsRaw = (data['signals'] as String?) ?? '';
+    final signalsList = signalsRaw.isNotEmpty
+        ? signalsRaw.split('||').where((s) => s.isNotEmpty).toList()
+        : <String>[];
+    ActionType type = _signalsToActionType(signalsList, data['bucket'] as String? ?? '');
 
     final avatarColors = [
       AppColors.primaryBlue,
@@ -94,12 +93,26 @@ class _BucketDetailPageState extends State<BucketDetailPage> {
       actionType: type,
       isRead: (data['isRead'] ?? 0) == 1,
       avatarColor: avatarColors[(data['id'] ?? '').hashCode.abs() % avatarColors.length],
-      signals: ((data['signals'] as String?) ?? '')
-          .split('||')
-          .where((s) => s.isNotEmpty)
-          .toList(),
+      signals: signalsList,
       classification: data['label'],
     );
+  }
+
+  ActionType _signalsToActionType(List<String> signals, String bucket) {
+    if (signals.any((s) => s.contains('Security'))) return ActionType.securityAlert;
+    if (signals.any((s) => s.contains('VIP'))) return ActionType.vipSender;
+    if (signals.any((s) => s.contains('Calendar') || s.contains('Meeting'))) return ActionType.meeting;
+    if (signals.any((s) => s.contains('Finance') || s.contains('Transaction'))) return ActionType.billing;
+    if (signals.any((s) => s.contains('Action required'))) return ActionType.actionRequired;
+    if (signals.any((s) => s.contains('Promotional'))) return ActionType.promotional;
+    if (signals.any((s) => s.contains('Muted'))) return ActionType.promotional;
+    switch (bucket) {
+      case 'needs_reply': return ActionType.actionRequired;
+      case 'transactions': return ActionType.billing;
+      case 'events': return ActionType.meeting;
+      case 'promotions': return ActionType.promotional;
+      default: return ActionType.none;
+    }
   }
 
   String _getInitials(String name) {
