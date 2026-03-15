@@ -253,10 +253,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // NEW: Load emails from local database (instant, no network)
   Future<void> _loadFromDatabase() async {
-    final rawEmails = await _storage.getAllEmails();
+    final rawOpenEmails = await _storage.getOpenEmails();
     if (mounted) {
       setState(() {
-        _emails = rawEmails.map(_dbToEmailModel).toList();
+        _emails = rawOpenEmails.map(_dbToEmailModel).toList();
         _isLoading = false;
       });
     }
@@ -539,12 +539,16 @@ class _HomeScreenState extends State<HomeScreen> {
       backgroundColor: Colors.transparent,
       builder: (context) => ComposeSheet(
         mode: ComposeMode.compose,
-        onSend: (to, subject, body) async {
+        onSend: (to, subject, body, {cc, bcc, isHtml = false, attachments}) async {
           final messenger = ScaffoldMessenger.of(context);
           await _gmailService.sendEmail(
             to: to,
+            cc: cc,
+            bcc: bcc,
             subject: subject,
             body: body,
+            isHtml: isHtml,
+            attachments: attachments,
           );
           // Show success message
           messenger.showSnackBar(
@@ -722,9 +726,27 @@ class _HomeScreenState extends State<HomeScreen> {
                   physics: const NeverScrollableScrollPhysics(),
                   itemCount: filtered.length,
                   itemBuilder: (context, index) {
+                    final email = filtered[index];
                     return InboxListItem(
-                      email: filtered[index],
-                      onTap: () => _navigateToEmailDetail(filtered[index]),
+                      email: email,
+                      onTap: () async {
+                        // If returning true from detail screen, we might need to refresh
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => EmailDetailScreen(
+                              messageId: email.id,
+                              threadId: email.threadId,
+                              accessToken: widget.accessToken,
+                              initialSubject: email.subject,
+                            ),
+                          ),
+                        );
+
+                        if (result == true) {
+                          _loadFromDatabase(); 
+                        }
+                      },
                     );
                   },
                 )

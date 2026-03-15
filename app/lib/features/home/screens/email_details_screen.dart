@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'dart:io';
+import 'dart:convert';
+import 'package:path_provider/path_provider.dart';
+import 'package:open_filex/open_filex.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:app/core/theme/app_colors.dart';
@@ -157,6 +161,28 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
     });
   }
 
+  Future<void> _markAsHandled(String messageId) async {
+    try {
+      await _storage.markAsHandled(messageId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Marked as handled!'),
+            backgroundColor: Colors.green[600],
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        Navigator.of(context).pop(true); // Pop back to inbox
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to mark as handled: $e')),
+        );
+      }
+    }
+  }
+
   void _showReplySheet({bool replyAll = false, String? initialBody}) {
     if (_thread == null) return;
 
@@ -168,7 +194,8 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
         mode: replyAll ? ComposeMode.replyAll : ComposeMode.reply,
         replyTo: _thread!.latestMessage,
         threadId: widget.threadId,
-        onSend: (to, subject, body) => _sendReply(to, subject, body),
+        onSend: (to, subject, body, {cc, bcc, isHtml = false, attachments}) => 
+            _sendReply(to, subject, body, cc: cc, bcc: bcc, isHtml: isHtml, attachments: attachments),
       ),
     );
   }
@@ -183,19 +210,29 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
       builder: (context) => ComposeSheet(
         mode: ComposeMode.forward,
         replyTo: _thread!.latestMessage,
-        onSend: (to, subject, body) => _sendForward(to, subject, body),
+        onSend: (to, subject, body, {cc, bcc, isHtml = false, attachments}) =>
+            _sendForward(to, subject, body, cc: cc, bcc: bcc, isHtml: isHtml, attachments: attachments),
       ),
     );
   }
 
-  Future<void> _sendReply(String to, String subject, String body) async {
+  Future<void> _sendReply(String to, String subject, String body, {
+    String? cc,
+    String? bcc,
+    bool isHtml = false,
+    List<Map<String, dynamic>>? attachments,
+  }) async {
     try {
       final latestMessage = _thread!.latestMessage;
 
       await _gmailService.sendEmail(
         to: to,
+        cc: cc,
+        bcc: bcc,
         subject: subject.startsWith('Re:') ? subject : 'Re: $subject',
         body: body,
+        isHtml: isHtml,
+        attachments: attachments,
         threadId: widget.threadId,
         inReplyTo: latestMessage.messageIdHeader,
         references: latestMessage.references?.isNotEmpty == true
@@ -230,12 +267,21 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
     }
   }
 
-  Future<void> _sendForward(String to, String subject, String body) async {
+  Future<void> _sendForward(String to, String subject, String body, {
+    String? cc,
+    String? bcc,
+    bool isHtml = false,
+    List<Map<String, dynamic>>? attachments,
+  }) async {
     try {
       await _gmailService.sendEmail(
         to: to,
+        cc: cc,
+        bcc: bcc,
         subject: subject.startsWith('Fwd:') ? subject : 'Fwd: $subject',
         body: body,
+        isHtml: isHtml,
+        attachments: attachments,
       );
 
       if (mounted) {
@@ -733,7 +779,8 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
                     mode: ComposeMode.reply,
                     replyTo: message,
                     threadId: widget.threadId,
-                    onSend: (to, subject, body) => _sendReply(to, subject, body),
+                    onSend: (to, subject, body, {cc, bcc, isHtml = false, attachments}) => 
+            _sendReply(to, subject, body, cc: cc, bcc: bcc, isHtml: isHtml, attachments: attachments),
                   ),
                 );
               },
@@ -884,17 +931,31 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
             onTap: () async {
               // Open PDF attachment via Gmail API download
               try {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Downloading ${pdfAttachment.first.filename}...\nPlease wait...')),
+                  );
+                }
                 final attachmentData = await _gmailService.fetchAttachment(
                   message.id,
                   pdfAttachment.first.id,
                 );
                 if (attachmentData != null && mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Downloaded ${pdfAttachment.first.filename}'),
-                      backgroundColor: Colors.green[600],
-                    ),
-                  );
+                  // Gmail returns base64url encoded string
+                  final base64Str = attachmentData.replaceAll('-', '+').replaceAll('_', '/');
+                  final bytes = base64.decode(base64Str);
+                  
+                  final dir = await getTemporaryDirectory();
+                  final file = File('${dir.path}/${pdfAttachment.first.filename}');
+                  await file.writeAsBytes(bytes);
+                  
+                  final result = await OpenFilex.open(file.path);
+                  
+                  if (mounted && result.type != ResultType.done) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Could not open file: ${result.message}')),
+                    );
+                  }
                 }
               } catch (e) {
                 if (mounted) {
@@ -1027,7 +1088,7 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
         label: 'Mark Handled',
         color: Colors.grey[700]!,
         isOutlined: true,
-        onTap: _handleArchive, // Archiving removes it from the immediate action queue
+        onTap: () => _markAsHandled(message.id), 
       ),
     );
 
@@ -1224,7 +1285,8 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
         replyTo: _thread!.latestMessage,
         threadId: widget.threadId,
         initialBody: suggestion,
-        onSend: (to, subject, body) => _sendReply(to, subject, body),
+        onSend: (to, subject, body, {cc, bcc, isHtml = false, attachments}) => 
+            _sendReply(to, subject, body, cc: cc, bcc: bcc, isHtml: isHtml, attachments: attachments),
       ),
     );
   }

@@ -111,6 +111,12 @@ class BucketConfig {
             icon: 'notifications',
             order: 5,
           ),
+          BucketItem(
+            id: 'handled',
+            name: 'Handled',
+            icon: 'task_alt',
+            order: 6,
+          ),
         ],
       );
 
@@ -146,6 +152,7 @@ class BucketIcons {
     'bookmark': Icons.bookmark_rounded,
     'email': Icons.email_rounded,
     'notifications': Icons.notifications_rounded,
+    'task_alt': Icons.task_alt_rounded,
   };
 
   static IconData getIcon(String iconName) {

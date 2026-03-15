@@ -86,6 +86,7 @@ class _BucketsPageState extends State<BucketsPage> {
       case 'events': return BucketType.events;
       case 'promotions': return BucketType.promotions;
       case 'updates': return BucketType.updates;
+      case 'handled': return BucketType.handled;
       case 'inbox': return BucketType.inbox;
       default: return BucketType.inbox;
     }
@@ -99,6 +100,7 @@ class _BucketsPageState extends State<BucketsPage> {
       case 'events': return 'CALENDAR';
       case 'promotions': return 'DEALS';
       case 'updates': return 'INFO';
+      case 'handled': return 'COMPLETED';
       case 'inbox': return 'GENERAL';
       default: return '';
     }
@@ -112,6 +114,7 @@ class _BucketsPageState extends State<BucketsPage> {
       case BucketType.events: return 'events';
       case BucketType.promotions: return 'promotions';
       case BucketType.updates: return 'updates';
+      case BucketType.handled: return 'handled';
       case BucketType.inbox: return 'inbox';
     }
   }

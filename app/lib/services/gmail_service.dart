@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:mime/mime.dart';
 
 class GmailService {
   final String accessToken;
@@ -77,7 +78,7 @@ class GmailService {
     return json.decode(response.body);
   }
 
-  /// Send an email
+  /// Send an email (supports HTML body, CC/BCC, and attachments)
   Future<Map<String, dynamic>> sendEmail({
     required String to,
     required String subject,
@@ -85,6 +86,10 @@ class GmailService {
     String? threadId,
     String? inReplyTo,
     String? references,
+    String? cc,
+    String? bcc,
+    bool isHtml = false,
+    List<Map<String, dynamic>>? attachments, // [{filename, bytes, mimeType}]
   }) async {
     final email = _buildRawEmail(
       to: to,
@@ -92,6 +97,10 @@ class GmailService {
       body: body,
       inReplyTo: inReplyTo,
       references: references,
+      cc: cc,
+      bcc: bcc,
+      isHtml: isHtml,
+      attachments: attachments,
     );
 
     final encodedEmail = base64Url.encode(utf8.encode(email));
@@ -117,19 +126,27 @@ class GmailService {
     return json.decode(response.body);
   }
 
-  /// Build RFC 2822 formatted email
+  /// Build RFC 2822 formatted email with optional MIME multipart for attachments
   String _buildRawEmail({
     required String to,
     required String subject,
     required String body,
     String? inReplyTo,
     String? references,
+    String? cc,
+    String? bcc,
+    bool isHtml = false,
+    List<Map<String, dynamic>>? attachments,
   }) {
     final buffer = StringBuffer();
+    final hasAttachments = attachments != null && attachments.isNotEmpty;
+    final boundary = 'boundary_${DateTime.now().millisecondsSinceEpoch}';
     
+    // Common headers
     buffer.writeln('To: $to');
+    if (cc != null && cc.isNotEmpty) buffer.writeln('Cc: $cc');
+    if (bcc != null && bcc.isNotEmpty) buffer.writeln('Bcc: $bcc');
     buffer.writeln('Subject: $subject');
-    buffer.writeln('Content-Type: text/plain; charset=utf-8');
     buffer.writeln('MIME-Version: 1.0');
     
     if (inReplyTo != null && inReplyTo.isNotEmpty) {
@@ -138,11 +155,100 @@ class GmailService {
     if (references != null && references.isNotEmpty) {
       buffer.writeln('References: $references');
     }
-    
-    buffer.writeln();
-    buffer.write(body);
+
+    if (hasAttachments) {
+      // Multipart message
+      buffer.writeln('Content-Type: multipart/mixed; boundary="$boundary"');
+      buffer.writeln();
+      buffer.writeln('--$boundary');
+      
+      if (isHtml) {
+        buffer.writeln('Content-Type: text/html; charset=utf-8');
+        buffer.writeln('Content-Transfer-Encoding: 7bit');
+        buffer.writeln();
+        buffer.writeln(_markdownToHtml(body));
+      } else {
+        buffer.writeln('Content-Type: text/plain; charset=utf-8');
+        buffer.writeln('Content-Transfer-Encoding: 7bit');
+        buffer.writeln();
+        buffer.writeln(body);
+      }
+      
+      // Attachments
+      for (final attachment in attachments!) {
+        final filename = attachment['filename'] as String;
+        final bytes = attachment['bytes'] as List<int>;
+        final mimeType = attachment['mimeType'] as String? ?? 
+            lookupMimeType(filename) ?? 'application/octet-stream';
+        final base64Data = base64.encode(bytes);
+        
+        buffer.writeln();
+        buffer.writeln('--$boundary');
+        buffer.writeln('Content-Type: $mimeType; name="$filename"');
+        buffer.writeln('Content-Disposition: attachment; filename="$filename"');
+        buffer.writeln('Content-Transfer-Encoding: base64');
+        buffer.writeln();
+        
+        // Write base64 in 76-char lines per RFC 2045
+        for (var i = 0; i < base64Data.length; i += 76) {
+          final end = (i + 76 < base64Data.length) ? i + 76 : base64Data.length;
+          buffer.writeln(base64Data.substring(i, end));
+        }
+      }
+      
+      buffer.writeln('--$boundary--');
+    } else {
+      // Simple message
+      if (isHtml) {
+        buffer.writeln('Content-Type: text/html; charset=utf-8');
+        buffer.writeln();
+        buffer.writeln(_markdownToHtml(body));
+      } else {
+        buffer.writeln('Content-Type: text/plain; charset=utf-8');
+        buffer.writeln();
+        buffer.write(body);
+      }
+    }
 
     return buffer.toString();
+  }
+
+  /// Convert simple markdown formatting to HTML
+  String _markdownToHtml(String markdown) {
+    var html = markdown
+        // Bold: **text** → <b>text</b>
+        .replaceAllMapped(RegExp(r'\*\*(.+?)\*\*'), (m) => '<b>${m.group(1)}</b>')
+        // Italic: _text_ → <i>text</i>
+        .replaceAllMapped(RegExp(r'(?<![\w])_(.+?)_(?![\w])'), (m) => '<i>${m.group(1)}</i>')
+        // Links: [text](url) → <a href="url">text</a>
+        .replaceAllMapped(RegExp(r'\[(.+?)\]\((.+?)\)'), (m) => '<a href="${m.group(2)}">${m.group(1)}</a>')
+        // Newlines → <br>
+        .replaceAll('\n', '<br>\n');
+    
+    // Bullet lists: lines starting with "- " → <li>
+    final lines = html.split('<br>\n');
+    final processed = <String>[];
+    bool inList = false;
+    
+    for (final line in lines) {
+      final trimmed = line.trim();
+      if (trimmed.startsWith('- ')) {
+        if (!inList) {
+          processed.add('<ul>');
+          inList = true;
+        }
+        processed.add('<li>${trimmed.substring(2)}</li>');
+      } else {
+        if (inList) {
+          processed.add('</ul>');
+          inList = false;
+        }
+        processed.add(line);
+      }
+    }
+    if (inList) processed.add('</ul>');
+    
+    return processed.join('\n');
   }
 
   /// Mark message as read
