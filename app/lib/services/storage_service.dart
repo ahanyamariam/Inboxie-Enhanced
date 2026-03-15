@@ -8,7 +8,7 @@ import 'package:app/models/notification_settings_model.dart';
 import 'package:app/models/label_config_model.dart';
 import 'package:app/models/bucket_config_model.dart';
 import 'package:app/models/email_label_model.dart';
-import 'package:app/services/intelligence_service.dart';
+
 
 class StorageService {
   static final StorageService _instance = StorageService._internal();
@@ -39,12 +39,39 @@ class StorageService {
 
     return await openDatabase(
       path,
-      version: 9,
+      version: 10,
       onCreate: (db, version) async {
+        await db.execute('''
+          CREATE TABLE users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT,
+            displayName TEXT,
+            photoUrl TEXT
+          )
+        ''');
+
+        await db.execute('''
+          CREATE TABLE user_metadata (
+            user_id INTEGER PRIMARY KEY,
+            lastSyncTimestamp INTEGER,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+          )
+        ''');
+
+        await db.execute('''
+          CREATE TABLE threads (
+            thread_id TEXT PRIMARY KEY,
+            user_id INTEGER,
+            subject TEXT,
+            lastUpdatedTimestamp INTEGER,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+          )
+        ''');
+
         await db.execute('''
           CREATE TABLE emails (
             id TEXT PRIMARY KEY,
-            threadId TEXT,
+            thread_id TEXT,
             senderName TEXT,
             senderEmail TEXT,
             subject TEXT,
@@ -60,244 +87,165 @@ class StorageService {
             syncedAt INTEGER,
             signals TEXT DEFAULT '[]',
             aiSummary TEXT,
-            replySuggestions TEXT
+            replySuggestions TEXT,
+            FOREIGN KEY (thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE
           )
         ''');
 
         await db.execute('''
-          CREATE TABLE user_profile (
+          CREATE TABLE attachments (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            email TEXT,
-            displayName TEXT,
-            photoUrl TEXT,
-            lastSyncTimestamp INTEGER
+            email_id TEXT,
+            fileName TEXT,
+            mimeType TEXT,
+            sizeBytes INTEGER,
+            FOREIGN KEY (email_id) REFERENCES emails(id) ON DELETE CASCADE
           )
         ''');
 
-        print('Database tables created (v9)!');
+        print('Database tables created (v10 — normalized schema)!');
       },
       onUpgrade: (db, oldVersion, newVersion) async {
+        // ──────────────────────────────────────
+        // Legacy migrations (v2–v9) for users
+        // who haven't updated in a while
+        // ──────────────────────────────────────
         if (oldVersion < 2) {
-          await db.execute("ALTER TABLE emails ADD COLUMN priorityLabel TEXT");
-          print('Migrated DB to v2: added priorityLabel column');
-
-          // Backfill: re-score existing emails with the new engine
-          final vipSenders = _prefs?.getStringList('vip_senders') ?? [];
-          final existingEmails = await db.query('emails');
-          for (var email in existingEmails) {
-            final analysis = IntelligenceService.analyze(
-              subject: (email['subject'] as String?) ?? '',
-              snippet: (email['snippet'] as String?) ?? '',
-              from: (email['senderEmail'] as String?) ?? '',
-              vipSenders: vipSenders,
-              emailTimestamp: (email['timestamp'] as int?) ?? 0,
-            );
-            await db.update(
-              'emails',
-              {
-                'priorityScore': analysis['priorityScore'],
-                'priorityLabel': analysis['priorityLabel'],
-                'bucket': analysis['bucket'],
-                'isActionable': analysis['isActionable'] ? 1 : 0,
-              },
-              where: 'id = ?',
-              whereArgs: [email['id']],
-            );
-          }
-          print('Backfilled ${existingEmails.length} emails with new priority scores');
-        }
-        if (oldVersion < 3) {
-          // v3: Re-score all emails with the enhanced priority engine
-          final vipSenders = _prefs?.getStringList('vip_senders') ?? [];
-          final rows = await db.query('emails');
-          for (var email in rows) {
-            final analysis = IntelligenceService.analyze(
-              subject: (email['subject'] as String?) ?? '',
-              snippet: (email['snippet'] as String?) ?? '',
-              from: (email['senderEmail'] as String?) ?? '',
-              vipSenders: vipSenders,
-              emailTimestamp: (email['timestamp'] as int?) ?? 0,
-            );
-            await db.update(
-              'emails',
-              {
-                'priorityScore': analysis['priorityScore'],
-                'priorityLabel': analysis['priorityLabel'],
-                'bucket': analysis['bucket'],
-                'isActionable': analysis['isActionable'] ? 1 : 0,
-              },
-              where: 'id = ?',
-              whereArgs: [email['id']],
-            );
-          }
-          print('v3 migration: Re-scored ${rows.length} emails with new priority engine');
+          try { await db.execute("ALTER TABLE emails ADD COLUMN priorityLabel TEXT"); } catch (_) {}
         }
         if (oldVersion < 4) {
-          // v4: Add signals column + re-score with overhauled engine
-          try {
-            await db.execute("ALTER TABLE emails ADD COLUMN signals TEXT DEFAULT '[]'");
-          } catch (_) { /* column may already exist */ }
-          final vipSenders = _prefs?.getStringList('vip_senders') ?? [];
-          final rows = await db.query('emails');
-          for (var email in rows) {
-            final analysis = IntelligenceService.analyze(
-              subject: (email['subject'] as String?) ?? '',
-              snippet: (email['snippet'] as String?) ?? '',
-              from: (email['senderEmail'] as String?) ?? '',
-              vipSenders: vipSenders,
-              emailTimestamp: (email['timestamp'] as int?) ?? 0,
-            );
-            final signalsList = analysis['signals'] as List<String>;
-            await db.update(
-              'emails',
-              {
-                'priorityScore': analysis['priorityScore'],
-                'priorityLabel': analysis['priorityLabel'],
-                'bucket': analysis['bucket'],
-                'isActionable': analysis['isActionable'] ? 1 : 0,
-                'signals': signalsList.join('||'),
-              },
-              where: 'id = ?',
-              whereArgs: [email['id']],
-            );
-          }
-          print('v4 migration: Re-scored ${rows.length} emails with overhauled intelligence engine');
-        }
-        if (oldVersion < 5) {
-          // v5: Re-score with bulk domain detection for marketing emails
-          final vipSenders = _prefs?.getStringList('vip_senders') ?? [];
-          final rows = await db.query('emails');
-          for (var email in rows) {
-            final analysis = IntelligenceService.analyze(
-              subject: (email['subject'] as String?) ?? '',
-              snippet: (email['snippet'] as String?) ?? '',
-              from: (email['senderEmail'] as String?) ?? '',
-              vipSenders: vipSenders,
-              emailTimestamp: (email['timestamp'] as int?) ?? 0,
-            );
-            final signalsList = analysis['signals'] as List<String>;
-            await db.update(
-              'emails',
-              {
-                'priorityScore': analysis['priorityScore'],
-                'priorityLabel': analysis['priorityLabel'],
-                'bucket': analysis['bucket'],
-                'isActionable': analysis['isActionable'] ? 1 : 0,
-                'signals': signalsList.join('||'),
-              },
-              where: 'id = ?',
-              whereArgs: [email['id']],
-            );
-          }
-          print('v5 migration: Re-scored ${rows.length} emails with bulk domain detection');
+          try { await db.execute("ALTER TABLE emails ADD COLUMN signals TEXT DEFAULT '[]'"); } catch (_) {}
         }
         if (oldVersion < 6) {
-          // v6: Add label column + re-classify all emails with label system
-          try {
-            await db.execute("ALTER TABLE emails ADD COLUMN label TEXT DEFAULT 'personal'");
-          } catch (_) { /* column may already exist */ }
-          final vipSenders = _prefs?.getStringList('vip_senders') ?? [];
-          final customLabels = _loadCustomLabelsSync();
-          final rows = await db.query('emails');
-          for (var email in rows) {
-            final analysis = IntelligenceService.analyze(
-              subject: (email['subject'] as String?) ?? '',
-              snippet: (email['snippet'] as String?) ?? '',
-              from: (email['senderEmail'] as String?) ?? '',
-              vipSenders: vipSenders,
-              emailTimestamp: (email['timestamp'] as int?) ?? 0,
-              customLabels: customLabels,
-            );
-            final signalsList = analysis['signals'] as List<String>;
-            await db.update(
-              'emails',
-              {
-                'priorityScore': analysis['priorityScore'],
-                'priorityLabel': analysis['priorityLabel'],
-                'bucket': analysis['bucket'],
-                'label': analysis['label'],
-                'isActionable': analysis['isActionable'] ? 1 : 0,
-                'signals': signalsList.join('||'),
-              },
-              where: 'id = ?',
-              whereArgs: [email['id']],
-            );
-          }
-          print('v6 migration: Re-classified ${rows.length} emails with label system');
-        }
-        if (oldVersion < 7) {
-          // v7: Final logic refinement migration
-          print('v7 migration: Starting re-classification with unified logic...');
-          final vipSenders = _prefs?.getStringList('vip_senders') ?? [];
-          final customLabels = _loadCustomLabelsSync();
-          final rows = await db.query('emails');
-          for (var email in rows) {
-            final analysis = IntelligenceService.analyze(
-              subject: (email['subject'] as String?) ?? '',
-              snippet: (email['snippet'] as String?) ?? '',
-              from: (email['senderEmail'] as String?) ?? '',
-              vipSenders: vipSenders,
-              emailTimestamp: (email['timestamp'] as int?) ?? 0,
-              customLabels: customLabels,
-            );
-            final signalsList = (analysis['signals'] as List<String>).join('||');
-            await db.update(
-              'emails',
-              {
-                'priorityScore': analysis['priorityScore'],
-                'priorityLabel': analysis['priorityLabel'],
-                'bucket': analysis['bucket'],
-                'label': analysis['label'],
-                'isActionable': analysis['isActionable'] ? 1 : 0,
-                'signals': signalsList,
-              },
-              where: 'id = ?',
-              whereArgs: [email['id']],
-            );
-          }
-          print('v7 migration: Successfully re-classified ${rows.length} emails.');
-        }
-        if (oldVersion < 8) {
-          // v8: Further refinement based on user feedback (over-aggressive reply + missing promos)
-          print('v8 migration: Re-processing emails with refined Needs Reply & Promotions logic...');
-          final vipSenders = _prefs?.getStringList('vip_senders') ?? [];
-          final customLabels = _loadCustomLabelsSync();
-          final rows = await db.query('emails');
-          for (var email in rows) {
-            final analysis = IntelligenceService.analyze(
-              subject: (email['subject'] as String?) ?? '',
-              snippet: (email['snippet'] as String?) ?? '',
-              from: (email['senderEmail'] as String?) ?? '',
-              vipSenders: vipSenders,
-              emailTimestamp: (email['timestamp'] as int?) ?? 0,
-              customLabels: customLabels,
-            );
-            final signalsList = (analysis['signals'] as List<String>).join('||');
-            await db.update(
-              'emails',
-              {
-                'priorityScore': analysis['priorityScore'],
-                'priorityLabel': analysis['priorityLabel'],
-                'bucket': analysis['bucket'],
-                'label': analysis['label'],
-                'isActionable': analysis['isActionable'] ? 1 : 0,
-                'signals': signalsList,
-              },
-              where: 'id = ?',
-              whereArgs: [email['id']],
-            );
-          }
-          print('v8 migration: Successfully re-classified ${rows.length} emails.');
+          try { await db.execute("ALTER TABLE emails ADD COLUMN label TEXT DEFAULT 'personal'"); } catch (_) {}
         }
         if (oldVersion < 9) {
-          // v9: Add AI columns
+          try { await db.execute("ALTER TABLE emails ADD COLUMN aiSummary TEXT"); } catch (_) {}
+          try { await db.execute("ALTER TABLE emails ADD COLUMN replySuggestions TEXT"); } catch (_) {}
+        }
+
+        // ──────────────────────────────────────
+        // v10: FULL SCHEMA REORGANIZATION
+        // ──────────────────────────────────────
+        if (oldVersion < 10) {
+          print('v10 migration: Starting schema reorganization...');
+
+          // 1. Create new tables
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              email TEXT,
+              displayName TEXT,
+              photoUrl TEXT
+            )
+          ''');
+
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS user_metadata (
+              user_id INTEGER PRIMARY KEY,
+              lastSyncTimestamp INTEGER,
+              FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+          ''');
+
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS threads (
+              thread_id TEXT PRIMARY KEY,
+              user_id INTEGER,
+              subject TEXT,
+              lastUpdatedTimestamp INTEGER,
+              FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+          ''');
+
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS attachments (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              email_id TEXT,
+              fileName TEXT,
+              mimeType TEXT,
+              sizeBytes INTEGER,
+              FOREIGN KEY (email_id) REFERENCES emails(id) ON DELETE CASCADE
+            )
+          ''');
+
+          // 2. Migrate user_profile → users + user_metadata
           try {
-            await db.execute("ALTER TABLE emails ADD COLUMN aiSummary TEXT");
-          } catch (_) { /* column may already exist */ }
+            final profiles = await db.query('user_profile');
+            for (var profile in profiles) {
+              final userId = await db.insert('users', {
+                'email': profile['email'],
+                'displayName': profile['displayName'],
+                'photoUrl': profile['photoUrl'],
+              });
+              await db.insert('user_metadata', {
+                'user_id': userId,
+                'lastSyncTimestamp': profile['lastSyncTimestamp'],
+              });
+            }
+            await db.execute('DROP TABLE IF EXISTS user_profile');
+            print('v10: Migrated ${profiles.length} user profiles → users + user_metadata');
+          } catch (e) {
+            print('v10: user_profile migration skipped ($e)');
+          }
+
+          // 3. Populate threads from existing emails
           try {
-            await db.execute("ALTER TABLE emails ADD COLUMN replySuggestions TEXT");
-          } catch (_) { /* column may already exist */ }
-          print('v9 migration: Added AI columns (aiSummary, replySuggestions)');
+            final emails = await db.query('emails');
+            final seenThreads = <String>{};
+            for (var email in emails) {
+              final threadId = (email['threadId'] as String?) ?? (email['thread_id'] as String?) ?? '';
+              if (threadId.isNotEmpty && seenThreads.add(threadId)) {
+                await db.insert('threads', {
+                  'thread_id': threadId,
+                  'subject': email['subject'] ?? '',
+                  'lastUpdatedTimestamp': email['timestamp'] ?? 0,
+                }, conflictAlgorithm: ConflictAlgorithm.ignore);
+              }
+            }
+            print('v10: Created ${seenThreads.length} thread records');
+          } catch (e) {
+            print('v10: Thread population skipped ($e)');
+          }
+
+          // 4. Rename threadId → thread_id in emails table
+          try {
+            await db.execute('''
+              CREATE TABLE emails_new (
+                id TEXT PRIMARY KEY,
+                thread_id TEXT,
+                senderName TEXT,
+                senderEmail TEXT,
+                subject TEXT,
+                snippet TEXT,
+                timestamp INTEGER,
+                bucket TEXT DEFAULT 'inbox',
+                label TEXT DEFAULT 'personal',
+                priorityScore INTEGER DEFAULT 0,
+                priorityLabel TEXT DEFAULT 'low',
+                isActionable INTEGER DEFAULT 0,
+                isRead INTEGER DEFAULT 0,
+                status TEXT DEFAULT 'open',
+                syncedAt INTEGER,
+                signals TEXT DEFAULT '[]',
+                aiSummary TEXT,
+                replySuggestions TEXT,
+                FOREIGN KEY (thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE
+              )
+            ''');
+            await db.execute('''
+              INSERT INTO emails_new (id, thread_id, senderName, senderEmail, subject, snippet, timestamp, bucket, label, priorityScore, priorityLabel, isActionable, isRead, status, syncedAt, signals, aiSummary, replySuggestions)
+              SELECT id, threadId, senderName, senderEmail, subject, snippet, timestamp, bucket, label, priorityScore, priorityLabel, isActionable, isRead, status, syncedAt, signals, aiSummary, replySuggestions
+              FROM emails
+            ''');
+            await db.execute('DROP TABLE emails');
+            await db.execute('ALTER TABLE emails_new RENAME TO emails');
+            print('v10: Migrated emails table (threadId → thread_id)');
+          } catch (e) {
+            print('v10: Emails table migration skipped ($e)');
+          }
+
+          print('v10 migration: Schema reorganization complete!');
         }
       },
     );
@@ -313,11 +261,16 @@ class StorageService {
     String? photoUrl,
   }) async {
     final db = await database;
-    await db.delete('user_profile');
-    await db.insert('user_profile', {
+    // Upsert into users table
+    await db.delete('users');
+    await db.delete('user_metadata');
+    final userId = await db.insert('users', {
       'email': email,
       'displayName': displayName,
       'photoUrl': photoUrl,
+    });
+    await db.insert('user_metadata', {
+      'user_id': userId,
       'lastSyncTimestamp': DateTime.now().millisecondsSinceEpoch,
     });
   }
@@ -328,6 +281,15 @@ class StorageService {
 
   Future<void> saveEmail(Map<String, dynamic> emailData) async {
     final db = await database;
+    // Upsert thread
+    final threadId = emailData['thread_id'] as String? ?? '';
+    if (threadId.isNotEmpty) {
+      await db.insert('threads', {
+        'thread_id': threadId,
+        'subject': emailData['subject'] ?? '',
+        'lastUpdatedTimestamp': emailData['timestamp'] ?? 0,
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
+    }
     await db.insert(
       'emails',
       emailData,
@@ -338,11 +300,61 @@ class StorageService {
   Future<void> saveEmails(List<Map<String, dynamic>> emails) async {
     final db = await database;
     final batch = db.batch();
+    // Upsert threads first
+    final seenThreads = <String>{};
     for (var email in emails) {
+      final threadId = email['thread_id'] as String? ?? '';
+      if (threadId.isNotEmpty && seenThreads.add(threadId)) {
+        batch.insert('threads', {
+          'thread_id': threadId,
+          'subject': email['subject'] ?? '',
+          'lastUpdatedTimestamp': email['timestamp'] ?? 0,
+        }, conflictAlgorithm: ConflictAlgorithm.ignore);
+      }
       batch.insert('emails', email, conflictAlgorithm: ConflictAlgorithm.replace);
     }
-    await batch.commit(noResult: true);
-    print('Saved ${emails.length} emails to database');
+    try {
+      await batch.commit(noResult: true);
+      print('✅ Saved ${emails.length} emails to database');
+    } catch (e) {
+      print('❌ Batch save failed: $e');
+      // Fallback: save one by one to identify the problematic email
+      for (var email in emails) {
+        try {
+          await saveEmail(email);
+        } catch (e2) {
+          print('❌ Single save failed for ${email['id']}: $e2');
+        }
+      }
+    }
+  }
+
+  // ==========================================
+  // ATTACHMENT METHODS
+  // ==========================================
+
+  Future<void> saveAttachment({
+    required String emailId,
+    required String fileName,
+    required String mimeType,
+    required int sizeBytes,
+  }) async {
+    final db = await database;
+    await db.insert('attachments', {
+      'email_id': emailId,
+      'fileName': fileName,
+      'mimeType': mimeType,
+      'sizeBytes': sizeBytes,
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> getAttachments(String emailId) async {
+    final db = await database;
+    return await db.query(
+      'attachments',
+      where: 'email_id = ?',
+      whereArgs: [emailId],
+    );
   }
 
   // ==========================================
@@ -353,7 +365,7 @@ class StorageService {
     final db = await database;
     return await db.query(
       'emails',
-      orderBy: 'priorityScore DESC, timestamp DESC',
+      orderBy: 'timestamp DESC',
     );
   }
 

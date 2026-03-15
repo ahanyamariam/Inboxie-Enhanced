@@ -109,7 +109,7 @@ class SyncService {
           // 8. Add to batch
           processedEmails.add({
             'id': messageId,
-            'threadId': threadId,
+            'thread_id': threadId,
             'senderName': senderName.isEmpty ? 'Unknown' : senderName,
             'senderEmail': senderEmail,
             'subject': subject.isEmpty ? '(No Subject)' : subject,
