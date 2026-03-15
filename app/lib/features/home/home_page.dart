@@ -17,6 +17,7 @@ import 'package:app/services/sync_service.dart';
 import 'package:app/services/gmail_service.dart';
 import 'package:app/services/ai_service.dart';
 import 'package:app/features/home/widgets/compose_sheet.dart';
+import 'package:app/models/user_settings_model.dart';
 
 class HomeScreen extends StatefulWidget {
   final String accessToken;
@@ -95,11 +96,40 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadFromDatabase();
     _runSync();
 
-    // Auto-sync every 30 seconds for new emails
-    _autoSyncTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      print('⏰ Auto-sync triggered');
-      _runSync();
-    });
+    // Auto-sync based on user's sync frequency setting
+    _startAutoSync();
+  }
+
+  void _startAutoSync() {
+    _autoSyncTimer?.cancel();
+    final settings = _storage.loadSettings();
+    final freq = settings.syncFrequency;
+
+    Duration? interval;
+    switch (freq) {
+      case SyncFrequency.fiveMin:
+        interval = const Duration(minutes: 5);
+        break;
+      case SyncFrequency.fifteenMin:
+        interval = const Duration(minutes: 15);
+        break;
+      case SyncFrequency.thirtyMin:
+        interval = const Duration(minutes: 30);
+        break;
+      case SyncFrequency.manual:
+        interval = null;
+        break;
+    }
+
+    if (interval != null) {
+      _autoSyncTimer = Timer.periodic(interval, (_) {
+        print('⏰ Auto-sync triggered (${freq.name})');
+        _runSync();
+      });
+      print('⏰ Auto-sync set to ${freq.name}');
+    } else {
+      print('⏰ Auto-sync disabled (manual mode)');
+    }
   }
 
   // Future<void> _fetchEmails() async {
@@ -250,17 +280,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   EmailModel _dbToEmailModel(Map<String, dynamic> data) {
-    // Map bucket string to ActionType enum
-    ActionType type = ActionType.none;
-    switch (data['bucket']) {
-      case 'needs_reply': type = ActionType.directQuestion; break;
-      case 'transactions': type = ActionType.billing; break;
-      case 'events': type = ActionType.deadline; break;
-      case 'important': type = ActionType.directQuestion; break;
-      case 'inbox': type = ActionType.none; break;
-      case 'promotions': type = ActionType.none; break;
-      case 'updates': type = ActionType.none; break;
-    }
+    // Map signals to ActionType (most specific signal wins)
+    final signalsRaw = data['signals'] as String? ?? '';
+    final signals = signalsRaw.isNotEmpty
+        ? signalsRaw.split('||').where((s) => s.isNotEmpty).toList()
+        : <String>[];
+    ActionType type = _signalsToActionType(signals, data['bucket'] as String? ?? '');
 
     // Map priorityLabel from DB (with score-based fallback)
     Priority priority;
@@ -287,11 +312,6 @@ class _HomeScreenState extends State<HomeScreen> {
       else priority = Priority.low;
     }
 
-    // Parse signals
-    final signalsRaw = data['signals'] as String? ?? '';
-    final signals = signalsRaw.isNotEmpty
-        ? signalsRaw.split('||').where((s) => s.isNotEmpty).toList()
-        : <String>[];
 
     // Timestamp
     DateTime timestamp = DateTime.fromMillisecondsSinceEpoch(data['timestamp'] ?? 0);
@@ -321,6 +341,28 @@ class _HomeScreenState extends State<HomeScreen> {
       aiSummary: data['aiSummary'],
     );
   }
+
+  /// Map intelligence signals to the most appropriate ActionType.
+  /// Priority: Security > VIP > Meeting > Billing > Deadline > Action > Newsletter > Promotional > Follow-up
+  ActionType _signalsToActionType(List<String> signals, String bucket) {
+    if (signals.any((s) => s.contains('Security'))) return ActionType.securityAlert;
+    if (signals.any((s) => s.contains('VIP'))) return ActionType.vipSender;
+    if (signals.any((s) => s.contains('Calendar') || s.contains('Meeting'))) return ActionType.meeting;
+    if (signals.any((s) => s.contains('Finance') || s.contains('Transaction'))) return ActionType.billing;
+    if (signals.any((s) => s.contains('Action required'))) return ActionType.actionRequired;
+    if (signals.any((s) => s.contains('Promotional'))) return ActionType.promotional;
+    if (signals.any((s) => s.contains('Muted'))) return ActionType.promotional;
+
+    // Fallback: use bucket if no signal matched
+    switch (bucket) {
+      case 'needs_reply': return ActionType.actionRequired;
+      case 'transactions': return ActionType.billing;
+      case 'events': return ActionType.meeting;
+      case 'promotions': return ActionType.promotional;
+      default: return ActionType.none;
+    }
+  }
+
   String _getInitials(String name) {
     if (name.isEmpty) return 'U';
     final parts = name.trim().split(' ');
@@ -330,7 +372,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   List<EmailModel> get _actionEmails {
     return _emails
-        .where((email) => email.actionType != ActionType.none)
+        .where((email) => email.actionType != ActionType.none && 
+                          email.actionType != ActionType.promotional &&
+                          email.actionType != ActionType.newsletter &&
+                          email.actionType != ActionType.followUp)
         .toList();
   }
 
@@ -346,7 +391,7 @@ class _HomeScreenState extends State<HomeScreen> {
           baseList = _emails;
           break;
         case 1: // Action
-          baseList = _emails.where((e) => e.actionType != ActionType.none).toList();
+          baseList = _actionEmails;
           break;
         case 2: // Urgent
           baseList = _emails.where((e) => e.priority == Priority.urgent).toList();
@@ -599,7 +644,7 @@ class _HomeScreenState extends State<HomeScreen> {
             });
           },
           onProfileTap: () {
-            _showEmailCountSelector();
+            _navigateToProfile();
           },
         ),
 

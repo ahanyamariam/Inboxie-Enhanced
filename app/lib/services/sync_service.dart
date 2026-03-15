@@ -2,6 +2,8 @@ import 'package:app/services/gmail_service.dart';
 import 'package:app/services/storage_service.dart';
 import 'package:app/services/intelligence_service.dart';
 import 'package:app/services/ai_service.dart';
+import 'package:app/models/user_settings_model.dart';
+import 'package:app/models/usage_stats_model.dart';
 
 class SyncService {
   final GmailService _gmail;
@@ -45,8 +47,12 @@ class SyncService {
 
       if (messageList.isEmpty) return 0;
 
-      // 2. Load VIP senders and custom labels for classification
+      // 2. Load VIP senders, muted senders, priority sensitivity, and custom labels
       final vipSenders = _storage.getVipSenders();
+      final mutedSenders = _storage.getMutedSenders();
+      final settings = _storage.loadSettings();
+      final prioritySensitivity = settings.prioritySensitivity;
+      final smartDetectionEnabled = settings.smartDetectionEnabled;
       final customLabels = _storage.getCustomLabels();
 
       // 3. Process each message
@@ -102,6 +108,8 @@ class SyncService {
             snippet: snippet,
             from: from,
             vipSenders: vipSenders,
+            mutedSenders: mutedSenders,
+            prioritySensitivity: prioritySensitivity,
             emailTimestamp: internalDate,
             customLabels: customLabels,
           );
@@ -139,10 +147,17 @@ class SyncService {
         await _storage.saveEmails(processedEmails);
       }
 
-      // 9. Generate AI summaries (non-blocking, after save)
+      // 9. Generate AI summaries (non-blocking, after save) — only if smart detection is ON
       final ai = _ai;
-      if (ai != null && ai.isConfigured && processedEmails.isNotEmpty) {
+      if (ai != null && ai.isConfigured && smartDetectionEnabled && processedEmails.isNotEmpty) {
         _generateAiSummaries(ai, processedEmails);
+      } else if (!smartDetectionEnabled) {
+        print('🤖 Smart Detection disabled — skipping AI summaries');
+      }
+
+      // 10. Update usage stats
+      if (processed > 0) {
+        _updateUsageStats(processedEmails);
       }
 
       final total = await _storage.getEmailCount();
@@ -154,6 +169,41 @@ class SyncService {
     } catch (e) {
       print('Sync Error: $e');
       rethrow;
+    }
+  }
+
+  /// Update usage stats after a successful sync.
+  void _updateUsageStats(List<Map<String, dynamic>> emails) {
+    try {
+      final stats = _storage.getUsageStats();
+
+      int needsAction = 0;
+      int newsletters = 0;
+      int deadlines = 0;
+
+      for (var email in emails) {
+        final bucket = email['bucket'] as String? ?? '';
+        final signals = email['signals'] as String? ?? '';
+
+        if (bucket == 'needs_reply') needsAction++;
+        if (bucket == 'promotions' || signals.contains('Promotional')) newsletters++;
+        if (bucket == 'events' || signals.contains('Calendar')) deadlines++;
+      }
+
+      final updated = stats.copyWith(
+        totalEmailsProcessed: stats.totalEmailsProcessed + emails.length,
+        needsActionSurfaced: stats.needsActionSurfaced + needsAction,
+        newslettersFiltered: stats.newslettersFiltered + newsletters,
+        deadlinesDetected: stats.deadlinesDetected + deadlines,
+        minutesSaved: stats.minutesSaved + emails.length, // ~1 min per email
+        firstUsed: stats.firstUsed ?? DateTime.now(),
+        lastSync: DateTime.now(),
+      );
+
+      _storage.saveUsageStats(updated);
+      print('📊 Usage stats updated: +${emails.length} processed, +$needsAction actions, +$newsletters newsletters');
+    } catch (e) {
+      print('📊 Usage stats update failed: $e');
     }
   }
 
