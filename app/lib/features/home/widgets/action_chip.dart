@@ -60,6 +60,10 @@ class ActionTypeChip extends StatelessWidget {
         return 'DEADLINE';
       case ActionType.followUp:
         return 'FOLLOW UP';
+      case ActionType.tracking:
+        return 'TRACKING';
+      case ActionType.travel:
+        return 'TRAVEL';
       case ActionType.none:
         return '';
     }
@@ -85,6 +89,10 @@ class ActionTypeChip extends StatelessWidget {
         return Icons.schedule_rounded;
       case ActionType.followUp:
         return Icons.hourglass_empty_rounded;
+      case ActionType.tracking:
+        return Icons.local_shipping_rounded;
+      case ActionType.travel:
+        return Icons.flight_takeoff_rounded;
       case ActionType.none:
         return Icons.circle;
     }
@@ -110,6 +118,10 @@ class ActionTypeChip extends StatelessWidget {
         return const Color(0xFFEA580C); // Orange
       case ActionType.followUp:
         return const Color(0xFF6366F1); // Indigo
+      case ActionType.tracking:
+        return const Color(0xFFFF9800); // Orange
+      case ActionType.travel:
+        return const Color(0xFF00BCD4); // Cyan
       case ActionType.none:
         return Colors.transparent;
     }

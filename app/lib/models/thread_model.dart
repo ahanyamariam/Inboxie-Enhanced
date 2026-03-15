@@ -1,4 +1,5 @@
 import 'email_detail_model.dart';
+export 'email_detail_model.dart';
 
 class ThreadModel {
   final String id;

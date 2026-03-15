@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:app/models/email_model.dart';
 
 class EmailDetailModel {
   final String id;
@@ -20,6 +21,7 @@ class EmailDetailModel {
   final String? messageIdHeader;
   final String? inReplyTo;
   final String? references;
+  final ActionType actionType;
 
   EmailDetailModel({
     required this.id,
@@ -41,6 +43,7 @@ class EmailDetailModel {
     this.messageIdHeader,
     this.inReplyTo,
     this.references,
+    this.actionType = ActionType.none,
   });
 
   factory EmailDetailModel.fromGmailApi(Map<String, dynamic> json) {

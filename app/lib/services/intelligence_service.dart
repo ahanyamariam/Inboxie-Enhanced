@@ -49,12 +49,17 @@ class IntelligenceService {
     bool hasQuestionInSubject = subject.contains('?') && !isAutomatedSender;
     bool isReplyNeeded = (isActionPhrases || hasQuestionInSubject || labelIdFromClassifier == 'work') && !isFinancial && !isMarketing && !isAutomatedSender;
 
+    bool isShipping = _hasKeywords(subjectLower, snippetLower, ['shipped', 'shipping', 'delivery', 'tracking', 'package', 'out for delivery', 'in transit', 'shipment', 'dispatched', 'courier']) && !isMarketing;
+    bool isTravel = _hasKeywords(subjectLower, snippetLower, ['flight', 'boarding pass', 'check-in', 'itinerary', 'hotel reservation', 'booking confirmation', 'travel', 'airline']) && !isMarketing;
+
     bool isVIP = vipSenders.any((vip) => senderEmail.contains(vip.toLowerCase()));
     bool isMuted = mutedSenders.any((m) => senderEmail.contains(m.toLowerCase()));
     
     if (isSecurity) signals.add('Security alert');
     if (isFinancial) signals.add('Finance/Transaction');
     if (isCalendar) signals.add('Calendar/Meeting');
+    if (isShipping) signals.add('Shipping/Delivery');
+    if (isTravel) signals.add('Travel/Flight');
     if (isReplyNeeded) signals.add('Action required');
     if (isVIP) signals.add('VIP Sender');
     if (isMuted) signals.add('Muted Sender');
@@ -69,6 +74,10 @@ class IntelligenceService {
       bucket = 'promotions';
     } else if (isSecurity || isVIP) {
       bucket = 'important';
+    } else if (isShipping) {
+      bucket = 'shipping';
+    } else if (isTravel) {
+      bucket = 'travel';
     } else if (isFinancial) {
       bucket = 'transactions';
     } else if (isReplyNeeded) {
@@ -146,7 +155,7 @@ class IntelligenceService {
       'bucket': bucket,
       'label': labelId,
       'priorityScore': score,
-      'isActionable': !isMuted && (isReplyNeeded || isCalendar || isSecurity || isFinancial),
+      'isActionable': !isMuted && (isReplyNeeded || isCalendar || isSecurity || isFinancial || isShipping || isTravel),
       'priorityLabel': priorityLabel,
       'signals': signals.toList(),
     };
