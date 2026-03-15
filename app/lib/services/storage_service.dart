@@ -369,6 +369,26 @@ class StorageService {
     );
   }
 
+  Future<List<Map<String, dynamic>>> getOpenEmails() async {
+    final db = await database;
+    return await db.query(
+      'emails',
+      where: 'status = ?',
+      whereArgs: ['open'],
+      orderBy: 'timestamp DESC',
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getHandledEmails() async {
+    final db = await database;
+    return await db.query(
+      'emails',
+      where: 'status = ?',
+      whereArgs: ['handled'],
+      orderBy: 'timestamp DESC',
+    );
+  }
+
   Future<List<Map<String, dynamic>>> getActionableEmails() async {
     final db = await database;
     return await db.query(
@@ -380,24 +400,41 @@ class StorageService {
   }
 
   Future<List<Map<String, dynamic>>> getEmailsByBucket(String bucket) async {
+    if (bucket == 'handled') {
+      return await getHandledEmails();
+    }
+
     final db = await database;
     return await db.query(
       'emails',
-      where: 'bucket = ?',
-      whereArgs: [bucket],
+      where: 'bucket = ? AND status = ?',
+      whereArgs: [bucket, 'open'],
       orderBy: 'timestamp DESC',
     );
   }
 
   Future<Map<String, int>> getBucketCounts() async {
     final db = await database;
-    final results = await db.rawQuery(
-      'SELECT bucket, COUNT(*) as count FROM emails GROUP BY bucket'
+    
+    // Count open emails by bucket
+    final openResults = await db.rawQuery(
+      "SELECT bucket, COUNT(*) as count FROM emails WHERE status = 'open' GROUP BY bucket"
     );
+    
+    // Count total handled emails
+    final handledResult = await db.rawQuery(
+      "SELECT COUNT(*) as count FROM emails WHERE status = 'handled'"
+    );
+
     final counts = <String, int>{};
-    for (var row in results) {
+    for (var row in openResults) {
       counts[row['bucket'] as String] = row['count'] as int;
     }
+    
+    if (handledResult.isNotEmpty) {
+      counts['handled'] = handledResult.first['count'] as int;
+    }
+    
     return counts;
   }
 
@@ -458,7 +495,22 @@ class StorageService {
 
   Future<void> markAsRead(String id) async {
     final db = await database;
-    await db.update('emails', {'isRead': 1}, where: 'id = ?', whereArgs: [id]);
+    await db.update(
+      'emails',
+      {'isRead': 1},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<void> markAsHandled(String id) async {
+    final db = await database;
+    await db.update(
+      'emails',
+      {'status': 'handled'},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
   }
 
   Future<void> markAsUnread(String id) async {

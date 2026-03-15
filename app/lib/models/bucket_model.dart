@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-enum BucketType { important, reply, transactions, events, promotions, updates, inbox }
+enum BucketType { important, reply, transactions, events, promotions, updates, inbox, handled }
 
 class BucketModel {
   final BucketType type;
