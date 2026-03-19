@@ -1,10 +1,12 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:mime/mime.dart';
 
 class GmailService {
   final String accessToken;
   static const String _baseUrl = 'https://gmail.googleapis.com/gmail/v1/users/me';
+  static const Duration _requestTimeout = Duration(seconds: 20);
 
   GmailService({required this.accessToken});
 
@@ -13,12 +15,27 @@ class GmailService {
     'Content-Type': 'application/json',
   };
 
+  Future<http.Response> _get(String url) async {
+    try {
+      return await http.get(Uri.parse(url), headers: _headers).timeout(_requestTimeout);
+    } on TimeoutException {
+      throw GmailApiException('Request timed out while contacting Gmail API');
+    }
+  }
+
+  Future<http.Response> _post(String url, {Object? body}) async {
+    try {
+      return await http
+          .post(Uri.parse(url), headers: _headers, body: body)
+          .timeout(_requestTimeout);
+    } on TimeoutException {
+      throw GmailApiException('Request timed out while contacting Gmail API');
+    }
+  }
+
   /// Fetch list of messages with metadata
   Future<List<Map<String, dynamic>>> fetchMessages({int maxResults = 20}) async {
-    final response = await http.get(
-      Uri.parse('$_baseUrl/messages?maxResults=$maxResults'),
-      headers: _headers,
-    );
+    final response = await _get('$_baseUrl/messages?maxResults=$maxResults');
 
     if (response.statusCode != 200) {
       throw GmailApiException('Failed to fetch messages: ${response.statusCode}');
@@ -32,10 +49,7 @@ class GmailService {
 
   /// Fetch full message details
   Future<Map<String, dynamic>> fetchMessage(String messageId) async {
-    final response = await http.get(
-      Uri.parse('$_baseUrl/messages/$messageId?format=full'),
-      headers: _headers,
-    );
+    final response = await _get('$_baseUrl/messages/$messageId?format=full');
 
     if (response.statusCode != 200) {
       throw GmailApiException('Failed to fetch message: ${response.statusCode}');
@@ -46,15 +60,14 @@ class GmailService {
 
   /// Fetch message metadata only (lighter request)
   Future<Map<String, dynamic>> fetchMessageMetadata(String messageId) async {
-    final response = await http.get(
-      Uri.parse('$_baseUrl/messages/$messageId?format=metadata'
-          '&metadataHeaders=Subject'
-          '&metadataHeaders=From'
-          '&metadataHeaders=To'
-          '&metadataHeaders=Cc'
-          '&metadataHeaders=Date'
-          '&metadataHeaders=Message-ID'),
-      headers: _headers,
+    final response = await _get(
+      '$_baseUrl/messages/$messageId?format=metadata'
+      '&metadataHeaders=Subject'
+      '&metadataHeaders=From'
+      '&metadataHeaders=To'
+      '&metadataHeaders=Cc'
+      '&metadataHeaders=Date'
+      '&metadataHeaders=Message-ID',
     );
 
     if (response.statusCode != 200) {
@@ -66,10 +79,7 @@ class GmailService {
 
   /// Fetch entire thread with all messages
   Future<Map<String, dynamic>> fetchThread(String threadId) async {
-    final response = await http.get(
-      Uri.parse('$_baseUrl/threads/$threadId?format=full'),
-      headers: _headers,
-    );
+    final response = await _get('$_baseUrl/threads/$threadId?format=full');
 
     if (response.statusCode != 200) {
       throw GmailApiException('Failed to fetch thread: ${response.statusCode}');
@@ -113,9 +123,8 @@ class GmailService {
       requestBody['threadId'] = threadId;
     }
 
-    final response = await http.post(
-      Uri.parse('$_baseUrl/messages/send'),
-      headers: _headers,
+    final response = await _post(
+      '$_baseUrl/messages/send',
       body: json.encode(requestBody),
     );
 
@@ -253,9 +262,8 @@ class GmailService {
 
   /// Mark message as read
   Future<void> markAsRead(String messageId) async {
-    await http.post(
-      Uri.parse('$_baseUrl/messages/$messageId/modify'),
-      headers: _headers,
+    await _post(
+      '$_baseUrl/messages/$messageId/modify',
       body: json.encode({
         'removeLabelIds': ['UNREAD'],
       }),
@@ -264,9 +272,8 @@ class GmailService {
 
   /// Mark message as unread
   Future<void> markAsUnread(String messageId) async {
-    await http.post(
-      Uri.parse('$_baseUrl/messages/$messageId/modify'),
-      headers: _headers,
+    await _post(
+      '$_baseUrl/messages/$messageId/modify',
       body: json.encode({
         'addLabelIds': ['UNREAD'],
       }),
@@ -275,9 +282,8 @@ class GmailService {
 
   /// Archive message (remove from inbox)
   Future<void> archiveMessage(String messageId) async {
-    final response = await http.post(
-      Uri.parse('$_baseUrl/messages/$messageId/modify'),
-      headers: _headers,
+    final response = await _post(
+      '$_baseUrl/messages/$messageId/modify',
       body: json.encode({
         'removeLabelIds': ['INBOX'],
       }),
@@ -290,10 +296,7 @@ class GmailService {
 
   /// Move message to trash
   Future<void> trashMessage(String messageId) async {
-    final response = await http.post(
-      Uri.parse('$_baseUrl/messages/$messageId/trash'),
-      headers: _headers,
-    );
+    final response = await _post('$_baseUrl/messages/$messageId/trash');
 
     if (response.statusCode != 200) {
       throw GmailApiException('Failed to trash: ${response.statusCode}');
@@ -302,9 +305,8 @@ class GmailService {
 
   /// Star a message
   Future<void> starMessage(String messageId) async {
-    await http.post(
-      Uri.parse('$_baseUrl/messages/$messageId/modify'),
-      headers: _headers,
+    await _post(
+      '$_baseUrl/messages/$messageId/modify',
       body: json.encode({
         'addLabelIds': ['STARRED'],
       }),
@@ -313,9 +315,8 @@ class GmailService {
 
   /// Unstar a message
   Future<void> unstarMessage(String messageId) async {
-    await http.post(
-      Uri.parse('$_baseUrl/messages/$messageId/modify'),
-      headers: _headers,
+    await _post(
+      '$_baseUrl/messages/$messageId/modify',
       body: json.encode({
         'removeLabelIds': ['STARRED'],
       }),
@@ -324,9 +325,8 @@ class GmailService {
 
   /// Fetch an attachment by message ID and attachment ID
   Future<String?> fetchAttachment(String messageId, String attachmentId) async {
-    final response = await http.get(
-      Uri.parse('$_baseUrl/messages/$messageId/attachments/$attachmentId'),
-      headers: _headers,
+    final response = await _get(
+      '$_baseUrl/messages/$messageId/attachments/$attachmentId',
     );
 
     if (response.statusCode != 200) {
