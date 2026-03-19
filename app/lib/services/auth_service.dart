@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:google_sign_in/google_sign_in.dart';
 
 /// Result of a successful Google Sign-In.
@@ -28,17 +29,47 @@ class AuthService {
     ],
   );
 
+  static const Duration _signInTimeout = Duration(seconds: 30);
+
   /// Signs in with Google and returns an [AuthResult] on success,
   /// or `null` if the user cancelled.
   /// Throws on failure.
   Future<AuthResult?> signInWithGoogle() async {
-    final GoogleSignInAccount? account = await _googleSignIn.signIn();
+    // Clear any stale cached session to force account chooser each time.
+    await _googleSignIn.signOut();
+
+    final GoogleSignInAccount? account;
+    try {
+      account = await _googleSignIn.signIn().timeout(_signInTimeout);
+    } on TimeoutException {
+      throw Exception(
+        'Google sign-in timed out. Please check your internet and try again.',
+      );
+    } on Exception catch (e) {
+      final raw = e.toString().toLowerCase();
+      if (raw.contains('com.google.android.gms.common.api') ||
+          raw.contains('sign_in_failed') ||
+          raw.contains('siginin failed')) {
+        throw Exception(
+          'Google Sign-In failed due to Android OAuth configuration. '
+          'Please verify SHA-1/SHA-256 fingerprints and `google-services.json`.',
+        );
+      }
+      rethrow;
+    }
 
     if (account == null) {
       return null; // User cancelled
     }
 
-    final GoogleSignInAuthentication auth = await account.authentication;
+    final GoogleSignInAuthentication auth;
+    try {
+      auth = await account.authentication.timeout(_signInTimeout);
+    } on TimeoutException {
+      throw Exception(
+        'Google authentication timed out while requesting access token.',
+      );
+    }
     final String? accessToken = auth.accessToken;
 
     if (accessToken == null) {
@@ -56,5 +87,23 @@ class AuthService {
   /// Signs out the current user.
   Future<void> signOut() async {
     await _googleSignIn.signOut();
+  }
+
+  String _friendlyGoogleSignInError(String code, String? description) {
+    final details = description == null || description.isEmpty
+        ? ''
+        : ' ($description)';
+
+    switch (code) {
+      case 'sign_in_canceled':
+        return 'Google sign-in canceled by user.';
+      case 'network_error':
+        return 'Network error during Google sign-in. Check connection and try again.';
+      case 'sign_in_required':
+        return 'No Google account available on this device. Add one in device settings.';
+      case 'sign_in_failed':
+      default:
+        return 'Google sign-in failed$details';
+    }
   }
 }

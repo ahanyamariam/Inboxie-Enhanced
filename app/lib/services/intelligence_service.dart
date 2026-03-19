@@ -36,13 +36,49 @@ class IntelligenceService {
     final _knownNotificationDomains = ['pinterest', 'linkedin', 'facebook', 'twitter', 'instagram', 'youtube', 'tiktok', 'reddit', 'quora', 'medium', 'substack', 'mailchimp', 'sendgrid', 'amazonses', 'shopify', 'stripe', 'uber', 'swiggy', 'zomato', 'flipkart', 'amazon', 'myntra', 'github', 'gitlab', 'figma', 'notion', 'slack', 'discord', 'canva'];
     bool isAutomatedSender = _noReplyPatterns.any((p) => senderEmail.contains(p)) || _knownNotificationDomains.any((d) => senderEmail.contains(d));
     
-    // Marketing first to catch promotional "purchase" or "confirm"
-    bool isMarketing = isAutomatedSender || labelIdFromClassifier == 'marketing' || labelIdFromClassifier == 'newsletter' || snippetLower.contains('unsubscribe') || snippetLower.contains('view in browser') || snippetLower.contains('opt out') ||  _hasKeywords(subjectLower, snippetLower, ['sale', 'offer', 'discount', 'promo', 'off your next']);
+    bool isSecurity = !_hasKeywords(subjectLower, snippetLower, ['marketing', 'promo']) &&
+        (labelIdFromClassifier == 'security' ||
+            _hasKeywords(subjectLower, snippetLower, [
+              'otp',
+              'verification code',
+              'password reset',
+              'security alert',
+              '2fa',
+            ]));
 
-    bool isSecurity = !_hasKeywords(subjectLower, snippetLower, ['marketing', 'promo']) && (labelIdFromClassifier == 'security' || _hasKeywords(subjectLower, snippetLower, ['otp', 'verification code', 'password reset', 'security alert', '2fa']));
-    
-    bool isFinancial = (labelIdFromClassifier == 'finance' || _hasKeywords(subjectLower, snippetLower, ['receipt', 'payment', 'invoice', 'transaction', 'billing', 'order confirmation'])) && !isMarketing;
-    
+    final hasMarketingSignals = labelIdFromClassifier == 'marketing' ||
+        labelIdFromClassifier == 'newsletter' ||
+        snippetLower.contains('unsubscribe') ||
+        snippetLower.contains('view in browser') ||
+        snippetLower.contains('opt out') ||
+        _hasKeywords(subjectLower, snippetLower, [
+          'sale',
+          'offer',
+          'discount',
+          'promo',
+          'off your next',
+        ]);
+
+    bool isFinancial = !hasMarketingSignals &&
+        (labelIdFromClassifier == 'finance' ||
+            _hasKeywords(subjectLower, snippetLower, [
+              'receipt',
+              'payment',
+              'invoice',
+              'transaction',
+              'billing',
+              'order confirmation',
+            ]));
+
+    bool isSocial = labelIdFromClassifier == 'social';
+
+    // Marketing should not override custom/social/finance/security classification.
+    bool isMarketing = !isCustom &&
+        !isSecurity &&
+        !isFinancial &&
+        !isSocial &&
+        hasMarketingSignals;
+
     bool isCalendar = labelIdFromClassifier == 'calendar' || _hasKeywords(subjectLower, snippetLower, ['meeting', 'invite', 'calendar', 'zoom', 'google meet']);
     
     bool isActionPhrases = _hasKeywords(subjectLower, snippetLower, ['please', 'could you', 'can you', 'let me know', 'confirm', 'review', 'action required']) && !isFinancial && !isAutomatedSender;
