@@ -39,7 +39,7 @@ class StorageService {
 
     return await openDatabase(
       path,
-      version: 10,
+      version: 11,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE users (
@@ -88,6 +88,7 @@ class StorageService {
             signals TEXT DEFAULT '[]',
             aiSummary TEXT,
             replySuggestions TEXT,
+            rawData TEXT,
             FOREIGN KEY (thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE
           )
         ''');
@@ -106,6 +107,14 @@ class StorageService {
         print('Database tables created (v10 — normalized schema)!');
       },
       onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 11) {
+  try {
+    await db.execute("ALTER TABLE emails ADD COLUMN rawData TEXT");
+    print('v11: Added rawData column to emails table');
+  } catch (e) {
+    print('v11: rawData column migration skipped ($e)');
+  }
+}
         // ──────────────────────────────────────
         // Legacy migrations (v2–v9) for users
         // who haven't updated in a while
@@ -261,9 +270,28 @@ class StorageService {
     String? photoUrl,
   }) async {
     final db = await database;
-    // Upsert into users table
-    await db.delete('users');
-    await db.delete('user_metadata');
+
+    // Check if this is a different user account
+    final existingUsers = await db.query('users', limit: 1);
+    final bool isDifferentAccount = existingUsers.isEmpty ||
+                                     existingUsers.first['email'] != email;
+
+    if (isDifferentAccount) {
+      // Only clear data when switching to a different account
+      print('⚠️ Switching accounts - clearing old data for: ${existingUsers.isNotEmpty ? existingUsers.first['email'] : 'none'}');
+      await db.delete('users');
+      await db.delete('user_metadata');
+      await db.delete('emails');  // Clear old emails
+      await db.delete('threads'); // Clear old threads
+      await db.delete('attachments'); // Clear old attachments
+    } else {
+      // Same account - just update profile, keep emails
+      print('✅ Same account - updating profile for: $email');
+      await db.delete('users');
+      await db.delete('user_metadata');
+    }
+
+    // Insert new/updated user profile
     final userId = await db.insert('users', {
       'email': email,
       'displayName': displayName,
@@ -273,6 +301,8 @@ class StorageService {
       'user_id': userId,
       'lastSyncTimestamp': DateTime.now().millisecondsSinceEpoch,
     });
+
+    print('✅ User profile saved for: $email');
   }
 
   // ==========================================

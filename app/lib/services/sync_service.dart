@@ -65,11 +65,11 @@ class SyncService {
         final threadId = msg['threadId'] as String? ?? '';
 
         try {
-          // 4. Fetch metadata from Gmail (needed for read status and content)
-          final metadata = await _gmail.fetchMessageMetadata(messageId);
+          // 4. Fetch FULL message from Gmail (CHANGED: was fetchMessageMetadata)
+          final fullMessage = await _gmail.fetchMessage(messageId);
 
           // 5. Parse labelIds and read state
-          final labelIds = (metadata['labelIds'] as List<dynamic>?) ?? [];
+          final labelIds = (fullMessage['labelIds'] as List<dynamic>?) ?? [];
           final isRead = !labelIds.contains('UNREAD');
 
           // 3. Update existing email if it's already in DB
@@ -84,7 +84,7 @@ class SyncService {
           String subject = '';
           String from = '';
           String senderEmail = '';
-          final headers = metadata['payload']?['headers'] as List<dynamic>? ?? [];
+          final headers = fullMessage['payload']?['headers'] as List<dynamic>? ?? [];
 
           for (var header in headers) {
             if (header['name'] == 'Subject') subject = header['value'] ?? '';
@@ -99,8 +99,8 @@ class SyncService {
             senderEmail = from;
           }
 
-          final snippet = metadata['snippet'] ?? '';
-          final internalDate = int.parse(metadata['internalDate'] ?? '0');
+          final snippet = fullMessage['snippet'] ?? '';
+          final internalDate = int.parse(fullMessage['internalDate'] ?? '0');
 
           // 7. Run Priority Scoring Engine with label classification
           final analysis = IntelligenceService.analyze(
@@ -114,7 +114,7 @@ class SyncService {
             customLabels: customLabels,
           );
 
-          // 8. Add to batch
+          // 8. Add to batch (INCLUDING rawData for inline images!)
           processedEmails.add({
             'id': messageId,
             'thread_id': threadId,
@@ -132,6 +132,7 @@ class SyncService {
             'status': 'open',
             'syncedAt': DateTime.now().millisecondsSinceEpoch,
             'signals': (analysis['signals'] as List<String>).join('||'),
+            'rawData': fullMessage, // ← ADD THIS: Store full Gmail API response
           });
 
           processed++;

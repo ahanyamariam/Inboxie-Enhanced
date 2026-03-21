@@ -53,7 +53,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
 
   // UI State
-  int _selectedTabIndex = 0; // Default to "All" tab
+  int _selectedTabIndex = 0; // Will be set from user settings on init
   int _bottomNavIndex = 0; // Default to "Home"
   int _maxResults = 10; // Email count selector
 
@@ -93,11 +93,35 @@ class _HomeScreenState extends State<HomeScreen> {
       aiService: _aiService,
     );
 
+    // Load default tab from user settings
+    _loadDefaultTab();
+
     _loadFromDatabase();
     _runSync();
 
     // Auto-sync based on user's sync frequency setting
     _startAutoSync();
+  }
+
+  void _loadDefaultTab() {
+    final settings = _storage.loadSettings();
+    setState(() {
+      // Map tab name to index: 'all' -> 0, 'action' -> 1, 'urgent' -> 2
+      switch (settings.defaultTab) {
+        case 'all':
+          _selectedTabIndex = 0;
+          break;
+        case 'action':
+          _selectedTabIndex = 1;
+          break;
+        case 'urgent':
+          _selectedTabIndex = 2;
+          break;
+        default:
+          _selectedTabIndex = 1; // Default to action if invalid value
+      }
+    });
+    print('📱 Default tab loaded: ${settings.defaultTab} (index: $_selectedTabIndex)');
   }
 
   void _startAutoSync() {

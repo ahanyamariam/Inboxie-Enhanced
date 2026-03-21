@@ -105,6 +105,7 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
             inReplyTo: msg.inReplyTo,
             references: msg.references,
             actionType: actionType,
+            rawData: msg.rawData,
           );
         }
       }
@@ -194,7 +195,8 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
         mode: replyAll ? ComposeMode.replyAll : ComposeMode.reply,
         replyTo: _thread!.latestMessage,
         threadId: widget.threadId,
-        onSend: (to, subject, body, {cc, bcc, isHtml = false, attachments}) => 
+        initialBody: initialBody,
+        onSend: (to, subject, body, {cc, bcc, isHtml = false, attachments}) =>
             _sendReply(to, subject, body, cc: cc, bcc: bcc, isHtml: isHtml, attachments: attachments),
       ),
     );
@@ -220,7 +222,7 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
     String? cc,
     String? bcc,
     bool isHtml = false,
-    List<Map<String, dynamic>>? attachments,
+    List<File>? attachments,
   }) async {
     try {
       final latestMessage = _thread!.latestMessage;
@@ -271,7 +273,7 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
     String? cc,
     String? bcc,
     bool isHtml = false,
-    List<Map<String, dynamic>>? attachments,
+    List<File>? attachments,
   }) async {
     try {
       await _gmailService.sendEmail(
@@ -315,8 +317,8 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
+        decoration: BoxDecoration(
+          color: AppColors.getSurface(context),
           borderRadius: BorderRadius.only(
             topLeft: Radius.circular(20),
             topRight: Radius.circular(20),
@@ -334,7 +336,7 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
                 height: 4,
                 margin: const EdgeInsets.only(bottom: 20),
                 decoration: BoxDecoration(
-                  color: Colors.grey[300],
+                  color: AppColors.getTextSecondary(context).withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -356,12 +358,11 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                const Text(
+                Text(
                   'Why this needs action',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
                   ),
                 ),
               ],
@@ -419,15 +420,15 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
             width: 36,
             height: 36,
             decoration: BoxDecoration(
-              color: isActive
+                color: isActive
                   ? AppColors.primaryBlue.withValues(alpha: 0.1)
-                  : Colors.grey.withValues(alpha: 0.1),
+                  : AppColors.getTextSecondary(context).withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(
               icon,
               size: 18,
-              color: isActive ? AppColors.primaryBlue : Colors.grey,
+              color: isActive ? AppColors.primaryBlue : AppColors.getTextSecondary(context),
             ),
           ),
           const SizedBox(width: 12),
@@ -436,7 +437,9 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
               text,
               style: TextStyle(
                 fontSize: 15,
-                color: isActive ? AppColors.textPrimary : Colors.grey,
+                color: isActive
+                    ? AppColors.getTextPrimary(context)
+                    : AppColors.getTextSecondary(context),
                 fontWeight: isActive ? FontWeight.w500 : FontWeight.w400,
               ),
             ),
@@ -532,17 +535,17 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.white,
       appBar: _buildAppBar(),
       body: _buildBody(),
-      bottomNavigationBar: _thread != null ? _buildBottomBar() : null,
+      bottomNavigationBar: _thread != null ? _buildQuickReplyBar() : null,
     );
   }
 
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
-      backgroundColor: AppColors.primaryBlue,
-      foregroundColor: Colors.white,
+      backgroundColor: Colors.white,
+      foregroundColor: const Color(0xFF1A1A2E),
       elevation: 0,
       leading: IconButton(
         icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
@@ -553,17 +556,31 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
         children: [
           Text(
             _thread?.subject ?? widget.initialSubject ?? 'Email',
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF1A1A2E),
+            ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-          if (_thread != null && _thread!.hasMultipleMessages)
-            Text(
-              '${_thread!.messageCount} messages in thread',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.white.withValues(alpha: 0.8),
-                fontWeight: FontWeight.w400,
+          // Action tag below subject
+          if (_thread != null && _thread!.latestMessage.actionType != ActionType.none)
+            Container(
+              margin: const EdgeInsets.only(top: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFC107).withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                _getActionLabel(_thread!.latestMessage.actionType),
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFFE65100),
+                  letterSpacing: 0.5,
+                ),
               ),
             ),
         ],
@@ -588,12 +605,6 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
                 break;
               case 'delete':
                 _handleDelete();
-                break;
-              case 'expand_all':
-                _expandAll();
-                break;
-              case 'collapse_all':
-                _collapseAll();
                 break;
               case 'mark_unread':
                 await _gmailService.markAsUnread(widget.messageId);
@@ -645,33 +656,29 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
                 ],
               ),
             ),
-            if (_thread != null && _thread!.hasMultipleMessages) ...[
-              const PopupMenuDivider(),
-              const PopupMenuItem(
-                value: 'expand_all',
-                child: Row(
-                  children: [
-                    Icon(Icons.unfold_more, size: 20),
-                    SizedBox(width: 12),
-                    Text('Expand all'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'collapse_all',
-                child: Row(
-                  children: [
-                    Icon(Icons.unfold_less, size: 20),
-                    SizedBox(width: 12),
-                    Text('Collapse all'),
-                  ],
-                ),
-              ),
-            ],
           ],
         ),
       ],
     );
+  }
+
+  String _getActionLabel(ActionType type) {
+    switch (type) {
+      case ActionType.actionRequired:
+        return 'NEEDS ACTION';
+      case ActionType.followUp:
+        return 'FOLLOW UP';
+      case ActionType.meeting:
+        return 'MEETING';
+      case ActionType.billing:
+        return 'BILLING';
+      case ActionType.tracking:
+        return 'TRACKING';
+      case ActionType.travel:
+        return 'TRAVEL';
+      default:
+        return '';
+    }
   }
 
   Widget _buildBody() {
@@ -684,7 +691,10 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
             const SizedBox(height: 16),
             Text(
               'Loading email...',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+              style: TextStyle(
+                color: AppColors.getTextSecondary(context),
+                fontSize: 14,
+              ),
             ),
           ],
         ),
@@ -712,18 +722,20 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
                 ),
               ),
               const SizedBox(height: 24),
-              const Text(
+              Text(
                 'Failed to load email',
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
                 ),
               ),
               const SizedBox(height: 8),
               Text(
                 _error!,
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+                style: TextStyle(
+                  color: AppColors.getTextSecondary(context),
+                  fontSize: 14,
+                ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 24),
@@ -755,114 +767,111 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
 
     return RefreshIndicator(
       onRefresh: _loadThread,
-      color: AppColors.primaryBlue,
+      color: const Color(0xFF1A1A2E),
       child: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         children: [
           // Thread messages
           ...List.generate(_thread!.messages.length, (index) {
             final message = _thread!.messages[index];
-            final isExpanded = _expandedMessages.contains(message.id);
-            final isLatest = index == _thread!.messages.length - 1;
 
             return ThreadMessageCard(
               message: message,
-              isExpanded: isExpanded,
-              isLatest: isLatest,
-              onTap: () => _toggleExpanded(message.id),
-              onReply: () {
-                showModalBottomSheet(
-                  context: context,
-                  isScrollControlled: true,
-                  backgroundColor: Colors.transparent,
-                  builder: (context) => ComposeSheet(
-                    mode: ComposeMode.reply,
-                    replyTo: message,
-                    threadId: widget.threadId,
-                    onSend: (to, subject, body, {cc, bcc, isHtml = false, attachments}) => 
-            _sendReply(to, subject, body, cc: cc, bcc: bcc, isHtml: isHtml, attachments: attachments),
-                  ),
-                );
-              },
+              isExpanded: true, // Always expanded in new design
+              isLatest: index == _thread!.messages.length - 1,
+              onTap: () {}, // No-op since no collapse/expand
+              accessToken: widget.accessToken,
+              gmailService: _gmailService,
+              onReply: null, // Remove quick reply button from card
             );
           }),
-
-          // Suggested Actions Feature
-          if (_thread != null && _thread!.latestMessage.actionType != ActionType.none)
-            _buildSuggestedActions(_thread!.latestMessage),
 
           // AI Reply Suggestions
           if (_loadingSuggestions)
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: AppColors.primaryBlue.withValues(alpha: 0.6),
+              padding: const EdgeInsets.only(top: 24, bottom: 16),
+              child: Center(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: const Color(0xFF1A1A2E),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    'Generating reply suggestions...',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: AppColors.textSecondary,
-                      fontStyle: FontStyle.italic,
+                    const SizedBox(width: 12),
+                    Text(
+                      'Generating AI suggestions...',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: const Color(0xFF8F92A1),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             )
           else if (_replySuggestions.isNotEmpty)
             _buildReplySuggestions(),
+
+          const SizedBox(height: 80), // Space for quick reply bar
         ],
       ),
     );
   }
 
-  Widget _buildBottomBar() {
+  Widget _buildQuickReplyBar() {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
+        border: Border(
+          top: BorderSide(
+            color: const Color(0xFFE0E0E0),
+            width: 1,
           ),
-        ],
+        ),
       ),
       child: SafeArea(
         child: Row(
           children: [
             Expanded(
-              child: _BottomActionButton(
-                icon: Icons.reply_rounded,
-                label: 'Reply',
-                isPrimary: true,
-                onTap: () => _showReplySheet(),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF5F5F5),
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: GestureDetector(
+                  onTap: () => _showReplySheet(),
+                  child: const Text(
+                    'Quick reply...',
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: Color(0xFF8F92A1),
+                    ),
+                  ),
+                ),
               ),
             ),
             const SizedBox(width: 12),
-            Expanded(
-              child: _BottomActionButton(
-                icon: Icons.reply_all_rounded,
-                label: 'Reply All',
-                onTap: () => _showReplySheet(replyAll: true),
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1A2E),
+                borderRadius: BorderRadius.circular(24),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _BottomActionButton(
-                icon: Icons.forward_rounded,
-                label: 'Forward',
-                onTap: _showForwardSheet,
+              child: IconButton(
+                icon: const Icon(
+                  Icons.send_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
+                onPressed: () => _showReplySheet(),
               ),
             ),
           ],
@@ -882,7 +891,7 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
         _SuggestedActionChip(
           icon: Icons.edit_calendar_rounded,
           label: 'Add to Calendar',
-          color: const Color(0xFF9C27B0), // Purple
+          color: const Color(0xFF1A1A2E), // Dark navy - minimal design
           onTap: () async {
             // Create a Google Calendar template URL
             final text = Uri.encodeComponent(message.subject);
@@ -903,13 +912,13 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
     }
 
     // 2. Needs Action / Direct Question / Follow Up
-    if (message.actionType == ActionType.actionRequired || 
+    if (message.actionType == ActionType.actionRequired ||
         message.actionType == ActionType.followUp) {
       actionChips.add(
         _SuggestedActionChip(
           icon: Icons.reply_rounded,
           label: 'Quick Reply',
-          color: AppColors.primaryBlue,
+          color: const Color(0xFF1A1A2E), // Dark navy - minimal design
           onTap: _showReplySheet,
         ),
       );
@@ -927,7 +936,7 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
           _SuggestedActionChip(
             icon: Icons.picture_as_pdf_rounded,
             label: 'Open Invoice (${pdfAttachment.first.formattedSize})',
-            color: const Color(0xFFE53935), // Red for PDF
+            color: const Color(0xFF1A1A2E), // Dark navy - minimal design
             onTap: () async {
               // Open PDF attachment via Gmail API download
               try {
@@ -980,7 +989,7 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
           _SuggestedActionChip(
             icon: Icons.payment_rounded,
             label: 'Open Payment Link',
-            color: const Color(0xFF4CAF50), // Green
+            color: const Color(0xFF1A1A2E), // Dark navy - minimal design
             onTap: () async {
               try {
                 await launchUrl(Uri.parse(paymentUrl), mode: LaunchMode.externalApplication);
@@ -1000,7 +1009,7 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
           _SuggestedActionChip(
             icon: Icons.receipt_long_rounded,
             label: 'View Invoice',
-            color: const Color(0xFF4CAF50),
+            color: const Color(0xFF1A1A2E), // Dark navy - minimal design
             onTap: () {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Invoice details are in the email body below')),
@@ -1022,7 +1031,7 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
         _SuggestedActionChip(
           icon: Icons.local_shipping_rounded,
           label: 'Track Package',
-          color: const Color(0xFFFF9800), // Orange
+          color: const Color(0xFF1A1A2E), // Dark navy - minimal design
           onTap: () async {
             if (trackingUrl != null) {
               try {
@@ -1057,7 +1066,7 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
         _SuggestedActionChip(
           icon: Icons.flight_takeoff_rounded,
           label: travelUrl != null ? 'Check In' : 'View Reservation',
-          color: const Color(0xFF00BCD4), // Cyan
+          color: const Color(0xFF1A1A2E), // Dark navy - minimal design
           onTap: () async {
             if (travelUrl != null) {
               try {
@@ -1086,9 +1095,9 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
       _SuggestedActionChip(
         icon: Icons.task_alt_rounded,
         label: 'Mark Handled',
-        color: Colors.grey[700]!,
+        color: const Color(0xFF8F92A1), // Gray - minimal design
         isOutlined: true,
-        onTap: () => _markAsHandled(message.id), 
+        onTap: () => _markAsHandled(message.id),
       ),
     );
 
@@ -1105,12 +1114,11 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
                 color: AppColors.accentYellow,
               ),
               const SizedBox(width: 6),
-              const Text(
+              Text(
                 'Suggested Actions',
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.textSecondary,
                   letterSpacing: 0.3,
                 ),
               ),
@@ -1195,36 +1203,47 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
 
   Widget _buildReplySuggestions() {
     return Container(
-      margin: const EdgeInsets.only(top: 8, bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.primaryBlue.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.primaryBlue.withValues(alpha: 0.15),
-        ),
-      ),
+      margin: const EdgeInsets.only(top: 24, bottom: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Header
           Row(
             children: [
-              const Text('✨', style: TextStyle(fontSize: 16)),
-              const SizedBox(width: 8),
-              Text(
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1A1A2E).withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Center(
+                  child: Text(
+                    '✨',
+                    style: TextStyle(fontSize: 16),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              const Text(
                 'AI Suggested Replies',
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.primaryBlue,
+                  color: Color(0xFF1A1A2E),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          ..._replySuggestions.map((suggestion) {
+          const SizedBox(height: 16),
+
+          // Suggestions
+          ..._replySuggestions.asMap().entries.map((entry) {
+            final index = entry.key;
+            final suggestion = entry.value;
+
             return Padding(
-              padding: const EdgeInsets.only(bottom: 8),
+              padding: EdgeInsets.only(bottom: index == _replySuggestions.length - 1 ? 0 : 12),
               child: Material(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
@@ -1232,34 +1251,45 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
                   onTap: () => _showReplyWithSuggestion(suggestion),
                   borderRadius: BorderRadius.circular(12),
                   child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 12,
-                    ),
+                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: AppColors.primaryBlue.withValues(alpha: 0.2),
+                        color: const Color(0xFFE0E0E0),
+                        width: 1,
                       ),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
                       children: [
-                        Icon(
-                          Icons.reply_rounded,
-                          size: 16,
-                          color: AppColors.primaryBlue.withValues(alpha: 0.6),
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1A1A2E).withValues(alpha: 0.05),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Icon(
+                            Icons.reply_rounded,
+                            size: 18,
+                            color: Color(0xFF1A1A2E),
+                          ),
                         ),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: 14),
                         Expanded(
                           child: Text(
                             suggestion,
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: AppColors.textPrimary,
-                              height: 1.4,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              color: Color(0xFF1A1A2E),
+                              height: 1.5,
                             ),
                           ),
+                        ),
+                        const SizedBox(width: 8),
+                        const Icon(
+                          Icons.arrow_forward_ios_rounded,
+                          size: 14,
+                          color: Color(0xFF8F92A1),
                         ),
                       ],
                     ),
@@ -1323,13 +1353,17 @@ class _BottomActionButton extends StatelessWidget {
               Icon(
                 icon,
                 size: 18,
-                color: isPrimary ? Colors.white : AppColors.primaryBlue,
+                color: isPrimary
+                    ? Theme.of(context).colorScheme.onPrimary
+                    : AppColors.primaryBlue,
               ),
               const SizedBox(width: 6),
               Text(
                 label,
                 style: TextStyle(
-                  color: isPrimary ? Colors.white : AppColors.primaryBlue,
+                  color: isPrimary
+                      ? Theme.of(context).colorScheme.onPrimary
+                      : AppColors.primaryBlue,
                   fontWeight: FontWeight.w600,
                   fontSize: 13,
                 ),
@@ -1360,37 +1394,36 @@ class _SuggestedActionChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: isOutlined ? Colors.transparent : color.withValues(alpha: 0.1),
-      borderRadius: BorderRadius.circular(20),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            border: isOutlined ? Border.all(color: color.withValues(alpha: 0.3)) : null,
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: const Color(0xFFE0E0E0), // Light gray border
+            width: 1,
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icon,
-                size: 16,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 18,
+              color: color,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
                 color: color,
               ),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  color: color,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

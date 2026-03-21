@@ -107,18 +107,31 @@ class _AuthScreenState extends State<AuthScreen>
     });
 
     try {
-      final result = await _authService.signInWithGoogle();
+      // Try silent sign-in first (if user is already signed in)
+      var result = await _authService.signInSilently();
 
       if (result == null) {
-        setState(() => _isLoading = false);
-        return;
+        // No existing session - show account picker
+        result = await _authService.signInWithGoogle();
+
+        if (result == null) {
+          // User cancelled
+          setState(() => _isLoading = false);
+          return;
+        }
+      } else {
+        // Existing session found - use it
+        print('✅ Using existing session for: ${result.email}');
       }
+
+      // At this point, result is guaranteed to be non-null
+      final authResult = result;
 
       // Save user to SQLite
       await StorageService().saveUserProfile(
-        email: result.email,
-        displayName: result.displayName,
-        photoUrl: result.photoUrl,
+        email: authResult.email,
+        displayName: authResult.displayName,
+        photoUrl: authResult.photoUrl,
       );
 
       if (mounted) {
@@ -126,10 +139,10 @@ class _AuthScreenState extends State<AuthScreen>
           context,
           MaterialPageRoute(
             builder: (_) => HomeScreen(
-              accessToken: result.accessToken,
-              userEmail: result.email,
-              userDisplayName: result.displayName,
-              userPhotoUrl: result.photoUrl,
+              accessToken: authResult.accessToken,
+              userEmail: authResult.email,
+              userDisplayName: authResult.displayName,
+              userPhotoUrl: authResult.photoUrl,
             ),
           ),
           (route) => false,

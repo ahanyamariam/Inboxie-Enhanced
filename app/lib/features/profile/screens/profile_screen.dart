@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:app/core/theme/app_colors.dart';
 import 'package:app/services/storage_service.dart';
+import 'package:app/services/auth_service.dart';
 import 'package:app/models/user_settings_model.dart';
 import 'package:app/features/profile/widgets/profile_header.dart';
 import 'package:app/features/profile/widgets/settings_section.dart';
@@ -41,8 +41,6 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final StorageService _storage = StorageService();
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
-
   late UserSettingsModel _settings;
   String _appVersion = '';
   bool _isLoading = false;
@@ -430,7 +428,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (confirm == true) {
       setState(() => _isLoading = true);
 
-      await _googleSignIn.signOut();
+      // Use AuthService to sign out (ensures the same instance is cleared)
+      await AuthService().signOut();
 
       if (mounted) {
         Navigator.of(context).pushAndRemoveUntil(

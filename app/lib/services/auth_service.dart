@@ -31,13 +31,39 @@ class AuthService {
 
   static const Duration _signInTimeout = Duration(seconds: 30);
 
-  /// Signs in with Google and returns an [AuthResult] on success,
-  /// or `null` if the user cancelled.
+  /// Checks if there's an existing signed-in user and attempts to restore the session silently.
+  /// Returns an [AuthResult] if successful, or `null` if no user is signed in.
+  Future<AuthResult?> signInSilently() async {
+    try {
+      final GoogleSignInAccount? account = await _googleSignIn.signInSilently();
+
+      if (account == null) {
+        return null; // No existing session
+      }
+
+      final GoogleSignInAuthentication auth = await account.authentication.timeout(_signInTimeout);
+      final String? accessToken = auth.accessToken;
+
+      if (accessToken == null) {
+        throw Exception('Failed to get access token');
+      }
+
+      return AuthResult(
+        accessToken: accessToken,
+        email: account.email,
+        displayName: account.displayName,
+        photoUrl: account.photoUrl,
+      );
+    } catch (e) {
+      print('Silent sign-in failed: $e');
+      return null; // Silent sign-in failed, user needs to sign in explicitly
+    }
+  }
+
+  /// Signs in with Google and shows the account picker.
+  /// Returns an [AuthResult] on success, or `null` if the user cancelled.
   /// Throws on failure.
   Future<AuthResult?> signInWithGoogle() async {
-    // Clear any stale cached session to force account chooser each time.
-    await _googleSignIn.signOut();
-
     final GoogleSignInAccount? account;
     try {
       account = await _googleSignIn.signIn().timeout(_signInTimeout);

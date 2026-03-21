@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:async';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:mime/mime.dart';
 
@@ -99,9 +100,9 @@ class GmailService {
     String? cc,
     String? bcc,
     bool isHtml = false,
-    List<Map<String, dynamic>>? attachments, // [{filename, bytes, mimeType}]
+    List<File>? attachments,
   }) async {
-    final email = _buildRawEmail(
+    final email = await _buildMimeMessage(
       to: to,
       subject: subject,
       body: body,
@@ -135,8 +136,9 @@ class GmailService {
     return json.decode(response.body);
   }
 
-  /// Build RFC 2822 formatted email with optional MIME multipart for attachments
-  String _buildRawEmail({
+  /// Build RFC 2822 multipart/mixed MIME message with optional file attachments.
+  /// Uses CRLF line endings as required by RFC 2822.
+  Future<String> _buildMimeMessage({
     required String to,
     required String subject,
     required String body,
@@ -145,81 +147,71 @@ class GmailService {
     String? cc,
     String? bcc,
     bool isHtml = false,
-    List<Map<String, dynamic>>? attachments,
-  }) {
+    List<File>? attachments,
+  }) async {
+    const crlf = '\r\n';
     final buffer = StringBuffer();
-    final hasAttachments = attachments != null && attachments.isNotEmpty;
-    final boundary = 'boundary_${DateTime.now().millisecondsSinceEpoch}';
-    
-    // Common headers
-    buffer.writeln('To: $to');
-    if (cc != null && cc.isNotEmpty) buffer.writeln('Cc: $cc');
-    if (bcc != null && bcc.isNotEmpty) buffer.writeln('Bcc: $bcc');
-    buffer.writeln('Subject: $subject');
-    buffer.writeln('MIME-Version: 1.0');
-    
+    final boundary = 'mixed_${DateTime.now().millisecondsSinceEpoch}';
+    final bodyHtml = isHtml ? _markdownToHtml(body) : _plainTextToHtml(body);
+
+    // Headers (RFC 2822 requires CRLF line endings)
+    buffer.write('To: $to$crlf');
+    if (cc != null && cc.isNotEmpty) buffer.write('Cc: $cc$crlf');
+    if (bcc != null && bcc.isNotEmpty) buffer.write('Bcc: $bcc$crlf');
+    buffer.write('Subject: $subject$crlf');
+    buffer.write('MIME-Version: 1.0$crlf');
     if (inReplyTo != null && inReplyTo.isNotEmpty) {
-      buffer.writeln('In-Reply-To: $inReplyTo');
+      buffer.write('In-Reply-To: $inReplyTo$crlf');
     }
     if (references != null && references.isNotEmpty) {
-      buffer.writeln('References: $references');
+      buffer.write('References: $references$crlf');
     }
+    buffer.write('Content-Type: multipart/mixed; boundary="$boundary"$crlf');
+    buffer.write(crlf);
 
-    if (hasAttachments) {
-      // Multipart message
-      buffer.writeln('Content-Type: multipart/mixed; boundary="$boundary"');
-      buffer.writeln();
-      buffer.writeln('--$boundary');
-      
-      if (isHtml) {
-        buffer.writeln('Content-Type: text/html; charset=utf-8');
-        buffer.writeln('Content-Transfer-Encoding: 7bit');
-        buffer.writeln();
-        buffer.writeln(_markdownToHtml(body));
-      } else {
-        buffer.writeln('Content-Type: text/plain; charset=utf-8');
-        buffer.writeln('Content-Transfer-Encoding: 7bit');
-        buffer.writeln();
-        buffer.writeln(body);
-      }
-      
-      // Attachments
-      for (final attachment in attachments!) {
-        final filename = attachment['filename'] as String;
-        final bytes = attachment['bytes'] as List<int>;
-        final mimeType = attachment['mimeType'] as String? ?? 
-            lookupMimeType(filename) ?? 'application/octet-stream';
-        final base64Data = base64.encode(bytes);
-        
-        buffer.writeln();
-        buffer.writeln('--$boundary');
-        buffer.writeln('Content-Type: $mimeType; name="$filename"');
-        buffer.writeln('Content-Disposition: attachment; filename="$filename"');
-        buffer.writeln('Content-Transfer-Encoding: base64');
-        buffer.writeln();
-        
-        // Write base64 in 76-char lines per RFC 2045
-        for (var i = 0; i < base64Data.length; i += 76) {
-          final end = (i + 76 < base64Data.length) ? i + 76 : base64Data.length;
-          buffer.writeln(base64Data.substring(i, end));
-        }
-      }
-      
-      buffer.writeln('--$boundary--');
-    } else {
-      // Simple message
-      if (isHtml) {
-        buffer.writeln('Content-Type: text/html; charset=utf-8');
-        buffer.writeln();
-        buffer.writeln(_markdownToHtml(body));
-      } else {
-        buffer.writeln('Content-Type: text/plain; charset=utf-8');
-        buffer.writeln();
-        buffer.write(body);
+    // Body part (always HTML in multipart message)
+    buffer.write('--$boundary$crlf');
+    buffer.write('Content-Type: text/html; charset=utf-8$crlf');
+    buffer.write('Content-Transfer-Encoding: 7bit$crlf');
+    buffer.write(crlf);
+    buffer.write('$bodyHtml$crlf');
+
+    // Attachment parts
+    for (final attachment in attachments ?? <File>[]) {
+      final filename = attachment.uri.pathSegments.isNotEmpty
+          ? attachment.uri.pathSegments.last
+          : 'attachment';
+      final safeFilename = filename.replaceAll('"', '');
+      final bytes = await attachment.readAsBytes();
+      final mimeType =
+          lookupMimeType(attachment.path, headerBytes: bytes) ??
+          'application/octet-stream';
+      final base64Data = base64.encode(bytes);
+
+      buffer.write('--$boundary$crlf');
+      buffer.write('Content-Type: $mimeType; name="$safeFilename"$crlf');
+      buffer.write(
+        'Content-Disposition: attachment; filename="$safeFilename"$crlf',
+      );
+      buffer.write('Content-Transfer-Encoding: base64$crlf');
+      buffer.write(crlf);
+      // Split base64 data into 76-character lines as per MIME spec
+      for (var i = 0; i < base64Data.length; i += 76) {
+        final end = (i + 76 < base64Data.length) ? i + 76 : base64Data.length;
+        buffer.write('${base64Data.substring(i, end)}$crlf');
       }
     }
+    buffer.write('--$boundary--$crlf');
 
     return buffer.toString();
+  }
+
+  String _plainTextToHtml(String text) {
+    final escaped = text
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;');
+    return escaped.replaceAll('\n', '<br>\n');
   }
 
   /// Convert simple markdown formatting to HTML
