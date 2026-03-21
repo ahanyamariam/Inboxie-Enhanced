@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:app/core/theme/app_colors.dart';
@@ -83,9 +84,12 @@ class _HomeScreenState extends State<HomeScreen> {
     final prefs = await SharedPreferences.getInstance();
     _aiService = AIService(prefs: prefs);
 
-    // Set API key if not already configured
+    // Set API key from environment if not already configured
     if (!_aiService!.isConfigured) {
-      await _aiService!.setApiKey('***REMOVED***');
+      final apiKey = dotenv.env['GROQ_API_KEY'];
+      if (apiKey != null && apiKey.isNotEmpty) {
+        await _aiService!.setApiKey(apiKey);
+      }
     }
 
     _syncService = SyncService(
