@@ -30,7 +30,6 @@ class BucketsPage extends StatefulWidget {
 class _BucketsPageState extends State<BucketsPage> {
   final StorageService _storage = StorageService();
   bool _isLoading = true;
-  final TextEditingController _searchController = TextEditingController();
 
   // Live bucket data — now dynamic from config
   List<BucketModel> _buckets = [];
@@ -39,12 +38,6 @@ class _BucketsPageState extends State<BucketsPage> {
   void initState() {
     super.initState();
     _loadData();
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -179,8 +172,11 @@ class _BucketsPageState extends State<BucketsPage> {
   @override
   Widget build(BuildContext context) {
     final isDark = AppColors.isDark(context);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final topPadding = MediaQuery.of(context).padding.top;
+
     return Scaffold(
-      backgroundColor: AppColors.getBackground(context),
+      backgroundColor: Colors.white,
       floatingActionButton: FloatingActionButton(
         onPressed: _showCustomization,
         backgroundColor: AppColors.primaryBlue,
@@ -196,223 +192,177 @@ class _BucketsPageState extends State<BucketsPage> {
         currentIndex: 1, // Buckets page is index 1
         onTap: _onBottomNavTap,
       ),
-      body: Stack(
-        children: [
-          // Wave decorations
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: CustomPaint(
-              size: Size(MediaQuery.of(context).size.width, 320),
-              painter: WaveAccentPainter(
-                color: AppColors.accentYellow.withValues(alpha: isDark ? 0.1 : 0.2),
+      body: _isLoading
+          ? const Center(
+              child: CircularProgressIndicator(
+                color: AppColors.primaryBlue,
               ),
-            ),
-          ),
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: CustomPaint(
-              size: Size(MediaQuery.of(context).size.width, 280),
-              painter: WaveHeaderPainter(isDark: isDark),
-            ),
-          ),
-
-          // Content
-          SafeArea(
-            child: Column(
+            )
+          : Stack(
               children: [
-                // Header
-                Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      // Profile Avatar
-                      GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => ProfileScreen(
-                                displayName:
-                                    widget.userDisplayName ??
-                                    widget.userEmail.split('@').first,
-                                email: widget.userEmail,
-                                photoUrl: widget.userPhotoUrl,
-                                accessToken: widget.accessToken,
-                              ),
-                            ),
-                          );
-                        },
-                        child: Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.3),
-                              width: 2,
-                            ),
-                            gradient: const LinearGradient(
-                              colors: [
-                                AppColors.accentYellow,
-                                AppColors.waveYellowDark,
-                              ],
-                            ),
-                          ),
-                          child: const Icon(
-                            Icons.person_rounded,
-                            color: AppColors.primaryBlue,
-                            size: 22,
-                          ),
-                        ),
-                      ),
-
-                      // Title
-                      const Text(
-                        'Buckets',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.5,
-                        ),
-                      ),
-
-                      // Back to Home
-                      GestureDetector(
-                        onTap: () => Navigator.pop(context),
-                        child: Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Colors.white.withValues(alpha: 0.1),
-                          ),
-                          child: const Icon(
-                            Icons.home_rounded,
-                            color: Colors.white,
-                            size: 24,
-                          ),
-                        ),
-                      ),
-                    ],
+                // Fixed wave background
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: CustomPaint(
+                    size: Size(screenWidth, 320),
+                    painter: WaveAccentPainter(
+                      color: AppColors.accentYellow.withValues(alpha: isDark ? 0.1 : 0.2),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: CustomPaint(
+                    size: Size(screenWidth, 280),
+                    painter: WaveHeaderPainter(isDark: isDark),
                   ),
                 ),
 
-                // Search Bar
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 16,
-                  ),
-                  child: Container(
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: AppColors.getSurface(context),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: AppColors.getDivider(context),
-                        width: 1,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.primaryBlue.withValues(alpha: 0.1),
-                          blurRadius: 30,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        const Padding(
-                          padding: EdgeInsets.only(left: 20, right: 12),
-                          child: Icon(
-                            Icons.search_rounded,
-                            color: AppColors.primaryBlue,
-                            size: 22,
-                          ),
-                        ),
-                        Expanded(
-                          child: TextField(
-                            controller: _searchController,
-                            decoration: InputDecoration(
-                              hintText: 'Search your emails...',
-                              hintStyle: TextStyle(
-                                color: AppColors.getTextMuted(context),
-                                fontSize: 15,
-                                fontWeight: FontWeight.w500,
+                // Fixed header
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: SafeArea(
+                    bottom: false,
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          // Profile Avatar
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => ProfileScreen(
+                                    displayName:
+                                        widget.userDisplayName ??
+                                        widget.userEmail.split('@').first,
+                                    email: widget.userEmail,
+                                    photoUrl: widget.userPhotoUrl,
+                                    accessToken: widget.accessToken,
+                                  ),
+                                ),
+                              );
+                            },
+                            child: Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.3),
+                                  width: 2,
+                                ),
+                                gradient: const LinearGradient(
+                                  colors: [
+                                    AppColors.accentYellow,
+                                    AppColors.waveYellowDark,
+                                  ],
+                                ),
                               ),
-                              border: InputBorder.none,
+                              child: const Icon(
+                                Icons.person_rounded,
+                                color: AppColors.primaryBlue,
+                                size: 22,
+                              ),
                             ),
+                          ),
+
+                          // Title
+                          const Text(
+                            'Buckets',
                             style: TextStyle(
-                              color: AppColors.getTextPrimary(context),
-                              fontSize: 15,
-                              fontWeight: FontWeight.w500,
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.5,
                             ),
                           ),
-                        ),
-                      ],
+
+                          // Back to Home
+                          GestureDetector(
+                            onTap: () => Navigator.pop(context),
+                            child: Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.white.withValues(alpha: 0.1),
+                              ),
+                              child: const Icon(
+                                Icons.home_rounded,
+                                color: Colors.white,
+                                size: 24,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
 
-                // Scrollable content
-                Expanded(
-                  child: _isLoading
-                      ? const Center(
-                          child: CircularProgressIndicator(
-                            color: AppColors.primaryBlue,
-                          ),
-                        )
-                      : SingleChildScrollView(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Buckets Grid — now dynamic
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 24,
-                                ),
-                                child: GridView.builder(
-                                  shrinkWrap: true,
-                                  physics: const NeverScrollableScrollPhysics(),
-                                  gridDelegate:
-                                      const SliverGridDelegateWithFixedCrossAxisCount(
-                                        crossAxisCount: 2,
-                                        crossAxisSpacing: 16,
-                                        mainAxisSpacing: 16,
-                                        childAspectRatio: 0.95,
-                                      ),
-                                  itemCount: _buckets.length,
-                                  itemBuilder: (context, index) {
-                                    return BucketCard(
-                                      bucket: _buckets[index],
-                                      onTap: () => _openBucket(_buckets[index]),
-                                    );
-                                  },
-                                ),
+                // Scrollable buckets with fade effect at top
+                Positioned.fill(
+                  top: topPadding + 88, // Below header
+                  child: ShaderMask(
+                    shaderCallback: (Rect bounds) {
+                      return const LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Colors.white,
+                          Colors.white,
+                        ],
+                        stops: [0.0, 0.08, 1.0],
+                      ).createShader(bounds);
+                    },
+                    blendMode: BlendMode.dstIn,
+                    child: ListView(
+                      padding: const EdgeInsets.only(
+                        top: 24,
+                        left: 24,
+                        right: 24,
+                        bottom: 100,
+                      ),
+                      children: [
+                        GridView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                crossAxisSpacing: 16,
+                                mainAxisSpacing: 16,
+                                childAspectRatio: 0.95,
                               ),
-
-
-                              const SizedBox(height: 100),
-                            ],
-                          ),
+                          itemCount: _buckets.length,
+                          itemBuilder: (context, index) {
+                            return BucketCard(
+                              bucket: _buckets[index],
+                              onTap: () => _openBucket(_buckets[index]),
+                            );
+                          },
                         ),
+                      ],
+                    ),
+                  ),
                 ),
               ],
             ),
-          ),
-        ],
-      ),
     );
   }
 }
 
-// Wave Painters (unchanged)
+// Static Wave Painters
 class WaveHeaderPainter extends CustomPainter {
   final bool isDark;
 

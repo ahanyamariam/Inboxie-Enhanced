@@ -443,7 +443,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.getBackground(context),
+      backgroundColor: Colors.white,
       bottomNavigationBar: BottomNav(currentIndex: 3, onTap: _onBottomNavTap),
       body: _isLoading
           ? const Center(
@@ -987,13 +987,11 @@ class _SelectorSheet<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = AppColors.isDark(context);
-
     return Container(
       padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: AppColors.getSurface(context),
-        borderRadius: const BorderRadius.only(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.only(
           topLeft: Radius.circular(20),
           topRight: Radius.circular(20),
         ),
@@ -1008,7 +1006,7 @@ class _SelectorSheet<T> extends StatelessWidget {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: isDark ? Colors.white24 : Colors.grey[300],
+                color: const Color(0xFFE0E0E0),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -1018,10 +1016,10 @@ class _SelectorSheet<T> extends StatelessWidget {
           // Title
           Text(
             title,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w700,
-              color: AppColors.getTextPrimary(context),
+              color: Color(0xFF1A1A2E),
             ),
           ),
 
@@ -1030,9 +1028,9 @@ class _SelectorSheet<T> extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               subtitle!,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 14,
-                color: AppColors.getTextSecondary(context),
+                color: Color(0xFF6B7280),
               ),
             ),
           ],
@@ -1046,9 +1044,7 @@ class _SelectorSheet<T> extends StatelessWidget {
             return Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: Material(
-                color: isSelected
-                    ? AppColors.primaryBlue.withValues(alpha: 0.1)
-                    : Colors.transparent,
+                color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
                 child: InkWell(
                   onTap: () {
@@ -1063,9 +1059,7 @@ class _SelectorSheet<T> extends StatelessWidget {
                       border: Border.all(
                         color: isSelected
                             ? AppColors.primaryBlue
-                            : (isDark
-                                  ? Colors.white24
-                                  : Colors.grey.withValues(alpha: 0.2)),
+                            : const Color(0xFFE0E0E0),
                         width: isSelected ? 2 : 1,
                       ),
                     ),
@@ -1077,18 +1071,18 @@ class _SelectorSheet<T> extends StatelessWidget {
                             width: 40,
                             height: 40,
                             decoration: BoxDecoration(
-                              color: isSelected
-                                  ? AppColors.primaryBlue.withValues(alpha: 0.1)
-                                  : (isDark
-                                        ? Colors.white12
-                                        : Colors.grey.withValues(alpha: 0.1)),
+                              color: const Color(0xFFF5F5F5),
                               borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: const Color(0xFFE0E0E0),
+                                width: 1,
+                              ),
                             ),
                             child: Icon(
                               iconBuilder!(option),
                               color: isSelected
                                   ? AppColors.primaryBlue
-                                  : (isDark ? Colors.white70 : Colors.grey),
+                                  : const Color(0xFF1A1A2E),
                               size: 22,
                             ),
                           ),
@@ -1107,16 +1101,16 @@ class _SelectorSheet<T> extends StatelessWidget {
                                   fontWeight: isSelected
                                       ? FontWeight.w700
                                       : FontWeight.w600,
-                                  color: AppColors.getTextPrimary(context),
+                                  color: const Color(0xFF1A1A2E),
                                 ),
                               ),
                               if (subtitleBuilder != null) ...[
                                 const SizedBox(height: 2),
                                 Text(
                                   subtitleBuilder!(option),
-                                  style: TextStyle(
+                                  style: const TextStyle(
                                     fontSize: 13,
-                                    color: AppColors.getTextSecondary(context),
+                                    color: Color(0xFF6B7280),
                                   ),
                                 ),
                               ],

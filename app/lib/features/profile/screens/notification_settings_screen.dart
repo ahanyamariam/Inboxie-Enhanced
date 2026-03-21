@@ -54,15 +54,15 @@ class _NotificationSettingsScreenState
   Widget build(BuildContext context) {
     if (_isLoading) {
       return Scaffold(
-        backgroundColor: AppColors.getBackground(context),
+        backgroundColor: Colors.white,
         body: const Center(child: CircularProgressIndicator()),
       );
     }
 
     return Scaffold(
-      backgroundColor: AppColors.getBackground(context),
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: AppColors.getBackground(context),
+        backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
           icon: Icon(

@@ -342,7 +342,7 @@ class _EmailLabelManagementScreenState
   Widget build(BuildContext context) {
     final isDark = AppColors.isDark(context);
     return Scaffold(
-      backgroundColor: AppColors.getBackground(context),
+      backgroundColor: Colors.white,
       body: Column(
         children: [
           // Header
