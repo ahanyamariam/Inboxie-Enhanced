@@ -1,0 +1,976 @@
+import 'dart:convert';
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:app/core/theme/app_colors.dart';
+import 'package:app/models/email_model.dart';
+import 'package:app/features/home/widgets/header_banner.dart';
+import 'package:app/features/home/widgets/action_card.dart';
+import 'package:app/features/home/widgets/inbox_list_item.dart';
+import 'package:app/features/home/widgets/bottom_nav.dart';
+import 'package:app/features/home/buckets_page.dart';
+import 'package:app/features/home/screens/email_details_screen.dart';
+import 'package:app/features/profile/screens/profile_screen.dart';
+import 'package:app/services/storage_service.dart';
+import 'package:app/services/sync_service.dart';
+import 'package:app/services/gmail_service.dart';
+import 'package:app/services/ai_service.dart';
+import 'package:app/features/home/widgets/compose_sheet.dart';
+import 'package:app/models/user_settings_model.dart';
+
+class HomeScreen extends StatefulWidget {
+  final String accessToken;
+  final String userEmail;
+  final String? userDisplayName;
+  final String? userPhotoUrl;
+
+  const HomeScreen({
+    super.key,
+    required this.accessToken,
+    required this.userEmail,
+    this.userDisplayName,
+    this.userPhotoUrl,
+  });
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  final StorageService _storage = StorageService();
+  late final SyncService _syncService;
+  Timer? _autoSyncTimer;
+  late final GmailService _gmailService;
+  AIService? _aiService;
+  bool _isLoading = true;
+  String? _error;
+  List<EmailModel> _emails = [];
+
+  // Search State
+  bool _isSearchActive = false;
+  String _searchQuery = '';
+  final TextEditingController _searchController = TextEditingController();
+
+  // UI State
+  int _selectedTabIndex = 0; // Will be set from user settings on init
+  int _bottomNavIndex = 0; // Default to "Home"
+  int _maxResults = 10; // Email count selector
+
+  @override
+  void initState() {
+    super.initState();
+    _gmailService = GmailService(accessToken: widget.accessToken);
+    _searchController.addListener(_onSearchChanged);
+    _initServices();
+  }
+
+  @override
+  void dispose() {
+    _autoSyncTimer?.cancel();
+    _searchController.removeListener(_onSearchChanged);
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged() {
+    setState(() {
+      _searchQuery = _searchController.text;
+    });
+  }
+
+  Future<void> _initServices() async {
+    final prefs = await SharedPreferences.getInstance();
+    _aiService = AIService(prefs: prefs);
+
+    // Set API key from environment if not already configured
+    if (!_aiService!.isConfigured) {
+      final apiKey = dotenv.env['GROQ_API_KEY'];
+      if (apiKey != null && apiKey.isNotEmpty) {
+        await _aiService!.setApiKey(apiKey);
+      }
+    }
+
+    _syncService = SyncService(
+      accessToken: widget.accessToken,
+      aiService: _aiService,
+    );
+
+    // Load default tab from user settings
+    _loadDefaultTab();
+
+    _loadFromDatabase();
+    _runSync();
+
+    // Auto-sync based on user's sync frequency setting
+    _startAutoSync();
+  }
+
+  void _loadDefaultTab() {
+    final settings = _storage.loadSettings();
+    setState(() {
+      // Map tab name to index: 'all' -> 0, 'action' -> 1, 'urgent' -> 2
+      switch (settings.defaultTab) {
+        case 'all':
+          _selectedTabIndex = 0;
+          break;
+        case 'action':
+          _selectedTabIndex = 1;
+          break;
+        case 'urgent':
+          _selectedTabIndex = 2;
+          break;
+        default:
+          _selectedTabIndex = 1; // Default to action if invalid value
+      }
+    });
+    print('📱 Default tab loaded: ${settings.defaultTab} (index: $_selectedTabIndex)');
+  }
+
+  void _startAutoSync() {
+    _autoSyncTimer?.cancel();
+    final settings = _storage.loadSettings();
+    final freq = settings.syncFrequency;
+
+    Duration? interval;
+    switch (freq) {
+      case SyncFrequency.fiveMin:
+        interval = const Duration(minutes: 5);
+        break;
+      case SyncFrequency.fifteenMin:
+        interval = const Duration(minutes: 15);
+        break;
+      case SyncFrequency.thirtyMin:
+        interval = const Duration(minutes: 30);
+        break;
+      case SyncFrequency.manual:
+        interval = null;
+        break;
+    }
+
+    if (interval != null) {
+      _autoSyncTimer = Timer.periodic(interval, (_) {
+        print('⏰ Auto-sync triggered (${freq.name})');
+        _runSync();
+      });
+      print('⏰ Auto-sync set to ${freq.name}');
+    } else {
+      print('⏰ Auto-sync disabled (manual mode)');
+    }
+  }
+
+  // Future<void> _fetchEmails() async {
+  //   setState(() {
+  //     _isLoading = true;
+  //     _error = null;
+  //   });
+
+  //   try {
+  //     final messagesResponse = await http.get(
+  //       Uri.parse(
+  //         'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=$_maxResults',
+  //       ),
+  //       headers: {'Authorization': 'Bearer ${widget.accessToken}'},
+  //     );
+
+  //     if (messagesResponse.statusCode != 200) {
+  //       throw Exception('Failed to fetch messages');
+  //     }
+
+  //     final messagesData = json.decode(messagesResponse.body);
+  //     final messages = messagesData['messages'] ?? [];
+
+  //     List<EmailModel> emailList = [];
+
+  //     for (var message in messages) {
+  //       final messageId = message['id'];
+  //       final threadId = message['threadId'];
+
+  //       final messageDetailResponse = await http.get(
+  //         Uri.parse(
+  //           'https://gmail.googleapis.com/gmail/v1/users/me/messages/$messageId?format=metadata&metadataHeaders=Subject&metadataHeaders=From',
+  //         ),
+  //         headers: {'Authorization': 'Bearer ${widget.accessToken}'},
+  //       );
+
+  //       if (messageDetailResponse.statusCode == 200) {
+  //         final detailData = json.decode(messageDetailResponse.body);
+  //         final headers = detailData['payload']['headers'] as List<dynamic>;
+
+  //         String subject = '';
+  //         String from = '';
+
+  //         for (var header in headers) {
+  //           if (header['name'] == 'Subject') subject = header['value'];
+  //           if (header['name'] == 'From') from = header['value'];
+  //         }
+
+  //         emailList.add(
+  //           _convertToEmailModel(
+  //             messageId,
+  //             threadId,
+  //             subject,
+  //             from,
+  //             emailList.length,
+  //           ),
+  //         );
+  //       }
+  //     }
+
+  //     setState(() {
+  //       _emails = emailList;
+  //     });
+  //   } catch (e) {
+  //     setState(() {
+  //       _error = e.toString();
+  //     });
+  //   } finally {
+  //     setState(() {
+  //       _isLoading = false;
+  //     });
+  //   }
+  // }
+
+  // EmailModel _convertToEmailModel(
+  //   String id,
+  //   String threadId,
+  //   String subject,
+  //   String from,
+  //   int index,
+  // ) {
+  //   final senderName = from.contains('<') ? from.split('<')[0].trim() : from;
+  //   final senderInitials = _getInitials(senderName);
+
+  //   final priorities = [
+  //     Priority.urgent,
+  //     Priority.important,
+  //     Priority.low,
+  //     Priority.action,
+  //   ];
+  //   final actionTypes = [
+  //     ActionType.directQuestion,
+  //     ActionType.deadline,
+  //     ActionType.waitingReply,
+  //     ActionType.billing,
+  //     ActionType.none,
+  //   ];
+  //   final avatarColors = [
+  //     AppColors.primaryBlue,
+  //     const Color(0xFFF2CB04),
+  //     const Color(0xFF1565C0),
+  //     const Color(0xFF0D47A1),
+  //   ];
+
+  //   return EmailModel(
+  //     id: id,
+  //     threadId: threadId,
+  //     senderName: senderName.isEmpty ? 'Unknown Sender' : senderName,
+  //     senderInitials: senderInitials,
+  //     subject: subject.isEmpty ? '(No Subject)' : subject,
+  //     preview: 'This is a preview of the email content...',
+  //     timestamp: DateTime.now().subtract(Duration(hours: index * 2)),
+  //     priority: priorities[index % priorities.length],
+  //     actionType: index < 3
+  //         ? actionTypes[index % actionTypes.length]
+  //         : ActionType.none,
+  //     isRead: index % 3 == 0,
+  //     avatarColor: avatarColors[index % avatarColors.length],
+  //   );
+  // }
+
+  // NEW: Load emails from local database (instant, no network)
+  Future<void> _loadFromDatabase() async {
+    final rawOpenEmails = await _storage.getOpenEmails();
+    if (mounted) {
+      setState(() {
+        _emails = rawOpenEmails.map(_dbToEmailModel).toList();
+        _isLoading = false;
+      });
+    }
+  }
+
+  // NEW: Sync from Gmail → Intelligence → SQLite → Reload UI
+  Future<void> _runSync() async {
+    setState(() {
+      _isLoading = _emails.isEmpty; // Only show spinner if no cached data
+      _error = null;
+    });
+
+    try {
+      await _syncService.quickSync();
+      await _loadFromDatabase();
+    } catch (e) {
+      setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  EmailModel _dbToEmailModel(Map<String, dynamic> data) {
+    // Map signals to ActionType (most specific signal wins)
+    final signalsRaw = data['signals'] as String? ?? '';
+    final signals = signalsRaw.isNotEmpty
+        ? signalsRaw.split('||').where((s) => s.isNotEmpty).toList()
+        : <String>[];
+    ActionType type = EmailModel.determineActionType(signals, data['bucket'] as String? ?? '');
+
+    // Map priorityLabel from DB (with score-based fallback)
+    Priority priority;
+    final label = data['priorityLabel'] as String?;
+    final int score = data['priorityScore'] ?? 0;
+
+    if (label != null && label.isNotEmpty) {
+      switch (label) {
+        case 'urgent': priority = Priority.urgent; break;
+        case 'important': priority = Priority.important; break;
+        case 'normal': priority = Priority.action; break;
+        case 'low': priority = Priority.low; break;
+        default:
+          // Fallback to score
+          if (score >= 50) priority = Priority.urgent;
+          else if (score >= 25) priority = Priority.important;
+          else if (score >= 10) priority = Priority.action;
+          else priority = Priority.low;
+      }
+    } else {
+      if (score >= 50) priority = Priority.urgent;
+      else if (score >= 25) priority = Priority.important;
+      else if (score >= 10) priority = Priority.action;
+      else priority = Priority.low;
+    }
+
+
+    // Timestamp
+    DateTime timestamp = DateTime.fromMillisecondsSinceEpoch(data['timestamp'] ?? 0);
+
+    // Avatar colors
+    final avatarColors = [
+      AppColors.primaryBlue,
+      const Color(0xFFF2CB04),
+      const Color(0xFF1565C0),
+      const Color(0xFF0D47A1),
+    ];
+
+    return EmailModel(
+      id: data['id'] ?? '',
+      threadId: data['thread_id'] ?? '',
+      senderName: data['senderName'] ?? 'Unknown Sender',
+      senderInitials: _getInitials(data['senderName'] ?? ''),
+      subject: data['subject'] ?? '(No Subject)',
+      preview: data['snippet'] ?? '',
+      timestamp: timestamp,
+      priority: priority,
+      actionType: type,
+      isRead: (data['isRead'] ?? 0) == 1,
+      avatarColor: avatarColors[(data['id'] ?? '').hashCode.abs() % avatarColors.length],
+      signals: signals,
+      classification: data['label'],
+      aiSummary: data['aiSummary'],
+    );
+  }
+
+
+
+  String _getInitials(String name) {
+    if (name.isEmpty) return 'U';
+    final parts = name.trim().split(' ');
+    if (parts.length == 1) return parts[0][0].toUpperCase();
+    return '${parts[0][0]}${parts[parts.length - 1][0]}'.toUpperCase();
+  }
+
+  List<EmailModel> get _actionEmails {
+    return _emails
+        .where((email) => email.actionType != ActionType.none && 
+                          email.actionType != ActionType.promotional &&
+                          email.actionType != ActionType.newsletter &&
+                          email.actionType != ActionType.followUp)
+        .toList();
+  }
+
+  List<EmailModel> get _filteredEmails {
+    List<EmailModel> baseList;
+    
+    // If searching, we search across ALL emails regardless of tab
+    if (_isSearchActive && _searchQuery.isNotEmpty) {
+      baseList = _emails;
+    } else {
+      switch (_selectedTabIndex) {
+        case 0: // All
+          baseList = _emails;
+          break;
+        case 1: // Action
+          baseList = _actionEmails;
+          break;
+        case 2: // Urgent
+          baseList = _emails.where((e) => e.priority == Priority.urgent).toList();
+          break;
+        case 3: // Important
+          baseList = _emails.where((e) => e.priority == Priority.important).toList();
+          break;
+        case 4: // Low
+          baseList = _emails.where((e) => e.priority == Priority.low).toList();
+          break;
+        default:
+          baseList = _emails;
+      }
+    }
+
+    if (_searchQuery.isEmpty) return baseList;
+
+    final query = _searchQuery.toLowerCase();
+    return baseList.where((email) {
+      return email.subject.toLowerCase().contains(query) ||
+          email.senderName.toLowerCase().contains(query) ||
+          email.preview.toLowerCase().contains(query) ||
+          (email.aiSummary?.toLowerCase().contains(query) ?? false);
+    }).toList();
+  }
+
+  void _showEmailCountSelector() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Container(
+          decoration: BoxDecoration(
+            color: AppColors.getSurface(context),
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(20),
+              topRight: Radius.circular(20),
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Number of emails to load',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 20),
+              ...[10, 25, 50, 100].map((count) {
+                return ListTile(
+                  leading: Radio<int>(
+                    value: count,
+                    // ignore: deprecated_member_use
+                    groupValue: _maxResults,
+                    fillColor: WidgetStateProperty.resolveWith((states) {
+                      if (states.contains(WidgetState.selected)) {
+                        return AppColors.primaryBlue;
+                      }
+                      return null;
+                    }),
+                    // ignore: deprecated_member_use
+                    onChanged: (value) {
+                      setState(() {
+                        _maxResults = value!;
+                      });
+                      Navigator.pop(context);
+                      _runSync();
+                    },
+                  ),
+                  title: Text(
+                    '$count emails',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: _maxResults == count
+                          ? FontWeight.w600
+                          : FontWeight.w500,
+                      color: AppColors.getTextPrimary(context),
+                    ),
+                  ),
+                  onTap: () {
+                    setState(() {
+                      _maxResults = count;
+                    });
+                    Navigator.pop(context);
+                    _runSync();
+                  },
+                );
+              }),
+              const SizedBox(height: 20),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _navigateToBuckets() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => BucketsPage(
+          accessToken: widget.accessToken,
+          userEmail: widget.userEmail,
+          userDisplayName: widget.userDisplayName, // ADD
+          userPhotoUrl: widget.userPhotoUrl, // ADD
+        ),
+      ),
+    ).then((_) {
+      setState(() => _bottomNavIndex = 0);
+    });
+  }
+
+  void _navigateToProfile() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ProfileScreen(
+          displayName:
+              widget.userDisplayName ?? widget.userEmail.split('@').first,
+          email: widget.userEmail,
+          photoUrl: widget.userPhotoUrl,
+          accessToken: widget.accessToken, // ADD
+        ),
+      ),
+    ).then((_) {
+      setState(() => _bottomNavIndex = 0);
+      _loadFromDatabase();
+    });
+  }
+
+  void _navigateToEmailDetail(EmailModel email) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EmailDetailScreen(
+          messageId: email.id,
+          threadId: email.threadId,
+          accessToken: widget.accessToken,
+          initialSubject: email.subject,
+        ),
+      ),
+    ).then((_) {
+      _loadFromDatabase();
+    });
+  }
+
+  void _showComposeSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => ComposeSheet(
+        mode: ComposeMode.compose,
+        onSend: (to, subject, body, {cc, bcc, isHtml = false, attachments}) async {
+          final messenger = ScaffoldMessenger.of(context);
+          await _gmailService.sendEmail(
+            to: to,
+            cc: cc,
+            bcc: bcc,
+            subject: subject,
+            body: body,
+            isHtml: isHtml,
+            attachments: attachments,
+          );
+          // Show success message
+          messenger.showSnackBar(
+            const SnackBar(content: Text('Email sent successfully!')),
+          );
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      floatingActionButton: FloatingActionButton(
+        onPressed: _showComposeSheet,
+        backgroundColor: AppColors.primaryBlue,
+        child: const Icon(Icons.edit_rounded, color: AppColors.accentYellow),
+      ),
+      bottomNavigationBar: BottomNav(
+        currentIndex: _bottomNavIndex,
+        onTap: (index) {
+          // Don't do anything if already on home and tapping home
+          if (index == 0 && _bottomNavIndex == 0) return;
+
+          setState(() {
+            _bottomNavIndex = index;
+          });
+
+          switch (index) {
+            case 0:
+              // Already on Home, do nothing
+              break;
+            case 1:
+              // Navigate to Buckets
+              _navigateToBuckets();
+              break;
+            case 2:
+              // Navigate to Profile
+              _navigateToProfile();
+              break;
+          }
+        },
+      ),
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.primaryBlue),
+      );
+    }
+
+    if (_error != null) {
+      return _buildErrorState();
+    }
+
+    return Column(
+      children: [
+        // Header Banner with Tabs
+        HeaderBanner(
+          selectedTabIndex: _selectedTabIndex,
+          isSearchActive: _isSearchActive,
+          searchController: _searchController,
+          onTabSelected: (index) {
+            setState(() {
+              _selectedTabIndex = index;
+            });
+          },
+          onSearchTap: () {
+            setState(() {
+              _isSearchActive = !_isSearchActive;
+              if (!_isSearchActive) {
+                _searchController.clear();
+              }
+            });
+          },
+          onProfileTap: () {
+            _navigateToProfile();
+          },
+        ),
+
+        // Scrollable Content
+        Expanded(
+          child: _emails.isEmpty ? _buildEmptyState() : _buildEmailList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildErrorState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.error_outline, size: 64, color: Colors.red),
+          const SizedBox(height: 16),
+          Text(
+            'Error loading emails',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: AppColors.getTextPrimary(context),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Text(
+              _error!,
+              style: const TextStyle(color: Colors.red),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton(
+            onPressed: _runSync,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryBlue,
+              foregroundColor: AppColors.textLight,
+            ),
+            child: const Text('Retry'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Text(
+        'No emails found',
+        style: TextStyle(
+          color: AppColors.getTextSecondary(context),
+          fontSize: 16,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmailList() {
+    final filtered = _filteredEmails;
+
+    return RefreshIndicator(
+      onRefresh: _runSync,
+      color: AppColors.primaryBlue,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 24),
+
+            if (_isSearchActive) ...[
+              // Search Results View
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Text(
+                  filtered.isEmpty
+                      ? 'No results for "$_searchQuery"'
+                      : 'Search results for "$_searchQuery"',
+                  style: TextStyle(
+                    color: AppColors.getTextSecondary(context),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              if (filtered.isNotEmpty)
+                ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: filtered.length,
+                  itemBuilder: (context, index) {
+                    final email = filtered[index];
+                    return InboxListItem(
+                      email: email,
+                      onTap: () async {
+                        // If returning true from detail screen, we might need to refresh
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => EmailDetailScreen(
+                              messageId: email.id,
+                              threadId: email.threadId,
+                              accessToken: widget.accessToken,
+                              initialSubject: email.subject,
+                            ),
+                          ),
+                        );
+
+                        if (result == true) {
+                          _loadFromDatabase(); 
+                        }
+                      },
+                    );
+                  },
+                )
+              else
+                _buildSearchEmptyState(),
+            ] else ...[
+              // Normal Dashboard View
+              _buildEmailCountIndicator(),
+              const SizedBox(height: 16),
+
+              // Needs Action Section
+              if (_actionEmails.isNotEmpty) ...[
+                _buildNeedsActionSection(),
+                const SizedBox(height: 32),
+              ],
+
+              // Recent Inbox Section
+              _buildRecentInboxSection(),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchEmptyState() {
+    return Center(
+      child: Column(
+        children: [
+          const SizedBox(height: 60),
+          Icon(
+            Icons.search_off_rounded,
+            size: 64,
+            color: AppColors.getTextSecondary(context).withValues(alpha: 0.2),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'We couldn\'t find anything matching your search.',
+            style: TextStyle(
+              color: AppColors.getTextSecondary(context),
+              fontSize: 15,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmailCountIndicator() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            'Showing ${_emails.length} emails',
+            style: TextStyle(
+              color: AppColors.getTextSecondary(context),
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          GestureDetector(
+            onTap: _showEmailCountSelector,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.primaryBlue.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Load: $_maxResults',
+                    style: const TextStyle(
+                      color: AppColors.primaryBlue,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  const Icon(
+                    Icons.arrow_drop_down,
+                    color: AppColors.primaryBlue,
+                    size: 18,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNeedsActionSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Needs Action',
+                style: TextStyle(
+                  color: AppColors.getTextPrimary(context),
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              GestureDetector(
+                onTap: () {
+                  // Switch to Action tab
+                  setState(() {
+                    _selectedTabIndex = 1;
+                  });
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.accentYellow,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text(
+                    'See all',
+                    style: TextStyle(
+                      color: AppColors.primaryBlue,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Action Cards Carousel
+        SizedBox(
+          height: 180,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: _actionEmails.length,
+            itemBuilder: (context, index) {
+              return ActionCard(
+                email: _actionEmails[index],
+                onTap: () => _navigateToEmailDetail(_actionEmails[index]),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRecentInboxSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Text(
+            'Recent Inbox',
+            style: TextStyle(
+              color: AppColors.getTextPrimary(context),
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // Inbox List
+        ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: _filteredEmails.length,
+          itemBuilder: (context, index) {
+            return InboxListItem(
+              email: _filteredEmails[index],
+              onTap: () => _navigateToEmailDetail(_filteredEmails[index]),
+            );
+          },
+        ),
+
+        // Bottom padding for FAB
+        const SizedBox(height: 80),
+      ],
+    );
+  }
+}

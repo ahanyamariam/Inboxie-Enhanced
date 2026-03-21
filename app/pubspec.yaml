@@ -1,0 +1,68 @@
+name: app
+description: "A new Flutter project."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Icons
+  cupertino_icons: ^1.0.8
+  
+  # Firebase
+  firebase_core: ^3.8.1
+  firebase_auth: ^5.3.4
+  
+  # Google Sign In
+  google_sign_in: ^6.2.1
+  
+  # HTTP requests
+  http: ^1.2.2
+  
+  # Local storage
+  shared_preferences: ^2.3.3
+  
+  # URL launching (privacy policy, terms, etc.)
+  url_launcher: ^6.3.1
+  
+  # Package info (version display)
+  package_info_plus: ^9.0.0
+  
+  # Image caching (profile photo)
+  cached_network_image: ^3.4.1
+
+  # Environment variables
+  flutter_dotenv: ^5.1.0
+
+  path_provider: ^2.1.5
+  flutter_widget_from_html: ^0.17.1
+  sqflite: ^2.3.3
+  path: ^1.9.0
+  file_picker: ^8.0.0
+  mime: ^1.0.6
+  open_filex: ^4.5.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.14.2
+
+flutter:
+  uses-material-design: true
+  assets:
+    - .env
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/app_icon.png"
+  adaptive_icon_background: "#083E84"
+  adaptive_icon_foreground: "assets/icon/app_icon.png"
+  remove_alpha_ios: true
