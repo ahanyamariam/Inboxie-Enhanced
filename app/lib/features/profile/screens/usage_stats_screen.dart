@@ -29,9 +29,9 @@ class _UsageStatsScreenState extends State<UsageStatsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.getBackground(context),
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: AppColors.getBackground(context),
+        backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
           icon: Icon(

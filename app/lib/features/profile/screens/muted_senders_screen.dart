@@ -216,7 +216,7 @@ class _MutedSendersScreenState extends State<MutedSendersScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.getBackground(context),
+      backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: AppColors.primaryBlue,
         foregroundColor: Colors.white,

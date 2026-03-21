@@ -33,7 +33,7 @@ class ProfileHeader extends StatelessWidget {
       child: Stack(
         children: [
           // 1. Background
-          Container(color: AppColors.getBackground(context)),
+          Container(color: Colors.white),
 
           // 2. Yellow Retro Ribbon (Top Left)
           Positioned(
@@ -74,23 +74,17 @@ class ProfileHeader extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const SizedBox(height: 10),
-                  // Avatar with Retro Border
+                  // Avatar with Border
                   Container(
                     width: 100,
                     height: 100,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: AppColors.primaryBlue, // Blue Border
-                        width: 4,
+                        color: const Color(0xFFE0E0E0),
+                        width: 3,
                       ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.primaryBlue.withValues(alpha: 0.2),
-                          blurRadius: 15,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
+                      color: Colors.white,
                     ),
                     child: ClipOval(
                       child: photoUrl != null && photoUrl!.isNotEmpty
@@ -108,24 +102,24 @@ class ProfileHeader extends StatelessWidget {
 
                   const SizedBox(height: 16),
 
-                  // Name (Blue)
+                  // Name
                   Text(
                     displayName ?? 'User',
                     style: const TextStyle(
-                      color: AppColors.primaryBlue,
+                      color: Color(0xFF1A1A2E),
                       fontSize: 26,
-                      fontWeight: FontWeight.w800, // Extra bold for retro feel
+                      fontWeight: FontWeight.w800,
                       letterSpacing: -0.5,
                     ),
                   ),
 
                   const SizedBox(height: 4),
 
-                  // Email (Secondary Blue)
+                  // Email
                   Text(
                     email ?? 'No email',
-                    style: TextStyle(
-                      color: AppColors.getTextSecondary(context),
+                    style: const TextStyle(
+                      color: Color(0xFF6B7280),
                       fontSize: 15,
                       fontWeight: FontWeight.w500,
                     ),
@@ -140,12 +134,8 @@ class ProfileHeader extends StatelessWidget {
                       vertical: 8,
                     ),
                     decoration: BoxDecoration(
-                      color: isConnected
-                          ? AppColors.success.withValues(alpha: 0.1)
-                          : AppColors.error.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(
-                        12,
-                      ), // Slightly squarer
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: isConnected
                             ? AppColors.success
@@ -190,12 +180,12 @@ class ProfileHeader extends StatelessWidget {
 
   Widget _buildInitialsAvatar() {
     return Container(
-      color: AppColors.accentYellow,
+      color: const Color(0xFFF5F5F5),
       child: Center(
         child: Text(
           _initials,
-          style: TextStyle(
-            color: AppColors.primaryBlue,
+          style: const TextStyle(
+            color: Color(0xFF1A1A2E),
             fontSize: 36,
             fontWeight: FontWeight.w800,
           ),

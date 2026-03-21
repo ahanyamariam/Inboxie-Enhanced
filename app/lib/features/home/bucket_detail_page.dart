@@ -126,7 +126,7 @@ class _BucketDetailPageState extends State<BucketDetailPage> {
   Widget build(BuildContext context) {
     final isDark = AppColors.isDark(context);
     return Scaffold(
-      backgroundColor: AppColors.getBackground(context),
+      backgroundColor: Colors.white,
       body: Column(
         children: [
           // Header
@@ -255,7 +255,6 @@ class _BucketDetailPageState extends State<BucketDetailPage> {
   }
 
   Widget _buildEmailTile(EmailModel email) {
-    final isDark = AppColors.isDark(context);
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -270,26 +269,15 @@ class _BucketDetailPageState extends State<BucketDetailPage> {
         ).then((_) => _loadEmails());
       },
       child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
+        margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: AppColors.getCard(context),
-          borderRadius: BorderRadius.circular(16),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: email.isRead
-                ? AppColors.getDivider(context)
-                : AppColors.primaryBlue.withValues(alpha: 0.3),
+            color: const Color(0xFFE0E0E0),
             width: 1,
           ),
-          boxShadow: isDark
-              ? null
-              : [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.03),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
         ),
         child: Row(
           children: [
@@ -325,7 +313,7 @@ class _BucketDetailPageState extends State<BucketDetailPage> {
                         child: Text(
                           email.senderName,
                           style: TextStyle(
-                            color: AppColors.getTextPrimary(context),
+                            color: const Color(0xFF1A1A2E),
                             fontSize: 15,
                             fontWeight: email.isRead ? FontWeight.w500 : FontWeight.w700,
                           ),
@@ -336,8 +324,8 @@ class _BucketDetailPageState extends State<BucketDetailPage> {
                       const SizedBox(width: 8),
                       Text(
                         email.timeAgo,
-                        style: TextStyle(
-                          color: AppColors.getTextMuted(context),
+                        style: const TextStyle(
+                          color: Color(0xFF6B7280),
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
                         ),
@@ -348,7 +336,7 @@ class _BucketDetailPageState extends State<BucketDetailPage> {
                   Text(
                     email.subject,
                     style: TextStyle(
-                      color: AppColors.getTextPrimary(context),
+                      color: const Color(0xFF1A1A2E),
                       fontSize: 14,
                       fontWeight: email.isRead ? FontWeight.w400 : FontWeight.w600,
                     ),
@@ -358,8 +346,8 @@ class _BucketDetailPageState extends State<BucketDetailPage> {
                   const SizedBox(height: 2),
                   Text(
                     email.preview,
-                    style: TextStyle(
-                      color: AppColors.getTextSecondary(context),
+                    style: const TextStyle(
+                      color: Color(0xFF6B7280),
                       fontSize: 13,
                       fontWeight: FontWeight.w400,
                     ),

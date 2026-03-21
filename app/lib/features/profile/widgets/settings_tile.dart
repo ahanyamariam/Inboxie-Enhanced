@@ -29,17 +29,17 @@ class SettingsTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final Color effectiveIconColor = isDestructive
         ? Colors.red
-        : (iconColor ?? AppColors.primaryBlue);
-    
+        : (iconColor ?? const Color(0xFF1A1A2E));
+
     final Color effectiveIconBg = isDestructive
         ? Colors.red.withValues(alpha: 0.1)
-        : (iconBackgroundColor ?? AppColors.primaryBlue.withValues(alpha: 0.1));
+        : (iconBackgroundColor ?? const Color(0xFFF5F5F5));
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: 16,
@@ -53,6 +53,10 @@ class SettingsTile extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: effectiveIconBg,
                   borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: const Color(0xFFE0E0E0),
+                    width: 1,
+                  ),
                 ),
                 child: Icon(
                   icon,
@@ -60,9 +64,9 @@ class SettingsTile extends StatelessWidget {
                   color: effectiveIconColor,
                 ),
               ),
-              
+
               const SizedBox(width: 14),
-              
+
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -72,31 +76,31 @@ class SettingsTile extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
-                        color: isDestructive 
-                            ? Colors.red 
-                            : AppColors.getTextPrimary(context),
+                        color: isDestructive
+                            ? Colors.red
+                            : const Color(0xFF1A1A2E),
                       ),
                     ),
                     if (subtitle != null) ...[
                       const SizedBox(height: 2),
                       Text(
                         subtitle!,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 12,
-                          color: AppColors.getTextSecondary(context),
+                          color: Color(0xFF6B7280),
                         ),
                       ),
                     ],
                   ],
                 ),
               ),
-              
+
               if (trailing != null) trailing!,
-              
+
               if (showArrow && trailing == null)
-                Icon(
+                const Icon(
                   Icons.chevron_right_rounded,
-                  color: AppColors.getTextSecondary(context),
+                  color: Color(0xFF6B7280),
                   size: 22,
                 ),
             ],
@@ -184,22 +188,26 @@ class SettingsSelectorTile extends StatelessWidget {
               vertical: 4,
             ),
             decoration: BoxDecoration(
-              color: AppColors.primaryBlue.withValues(alpha: 0.1),
+              color: Colors.white,
               borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: const Color(0xFFE0E0E0),
+                width: 1,
+              ),
             ),
             child: Text(
               value,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: AppColors.primaryBlue,
+                color: Color(0xFF1A1A2E),
               ),
             ),
           ),
           const SizedBox(width: 4),
-          Icon(
+          const Icon(
             Icons.chevron_right_rounded,
-            color: AppColors.getTextSecondary(context),
+            color: Color(0xFF6B7280),
             size: 22,
           ),
         ],
@@ -248,22 +256,26 @@ class SettingsCountTile extends StatelessWidget {
                 vertical: 4,
               ),
               decoration: BoxDecoration(
-                color: AppColors.accentYellow,
+                color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: const Color(0xFFE0E0E0),
+                  width: 1,
+                ),
               ),
               child: Text(
                 '$count',
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.primaryBlue,
+                  color: Color(0xFF1A1A2E),
                 ),
               ),
             ),
           const SizedBox(width: 4),
-          Icon(
+          const Icon(
             Icons.chevron_right_rounded,
-            color: AppColors.getTextSecondary(context),
+            color: Color(0xFF6B7280),
             size: 22,
           ),
         ],
