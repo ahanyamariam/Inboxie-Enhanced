@@ -66,22 +66,23 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   void _startAnimationSequence() async {
-    
+    // Start logo animation
     _logoController.forward();
 
-   
-    await Future.delayed(const Duration(seconds: 3));
+    // Wait for logo animation
+    await Future.delayed(const Duration(seconds: 2));
 
     if (!mounted) return;
 
-    
     setState(() => _isLoading = false);
     _waveController.forward();
 
-   
+    // Wait for wave animation
     await Future.delayed(const Duration(milliseconds: 1200));
 
     if (mounted) {
+      // Always show onboarding/auth screen
+      // Silent sign-in will happen when user clicks "Sign in with Google"
       Navigator.pushReplacement(
         context,
         PageRouteBuilder(

@@ -22,6 +22,8 @@ class EmailDetailModel {
   final String? inReplyTo;
   final String? references;
   final ActionType actionType;
+  final Map<String, dynamic>? rawData;
+  
 
   EmailDetailModel({
     required this.id,
@@ -43,7 +45,9 @@ class EmailDetailModel {
     this.messageIdHeader,
     this.inReplyTo,
     this.references,
+    this.rawData,
     this.actionType = ActionType.none,
+    
   });
 
   factory EmailDetailModel.fromGmailApi(Map<String, dynamic> json) {
@@ -99,6 +103,7 @@ class EmailDetailModel {
       messageIdHeader: getHeader('Message-ID'),
       inReplyTo: getHeader('In-Reply-To'),
       references: getHeader('References'),
+      rawData: json,
     );
   }
 
@@ -224,13 +229,41 @@ class EmailDetailModel {
       final attachmentId = body?['attachmentId'] as String?;
       final size = body?['size'] as int? ?? 0;
       final mimeType = part['mimeType'] as String?;
+      final partHeaders = part['headers'] as List<dynamic>? ?? [];
 
-      if (filename != null && filename.isNotEmpty && attachmentId != null) {
+      // Extract Content-ID header for inline images
+      String? contentId;
+      for (final header in partHeaders) {
+        final name = (header['name'] as String? ?? '').toLowerCase();
+        if (name == 'content-id') {
+          // Content-ID is typically wrapped in angle brackets: <image001@example.com>
+          contentId = (header['value'] as String? ?? '')
+              .replaceAll('<', '')
+              .replaceAll('>', '')
+              .trim();
+          break;
+        }
+      }
+
+      // Include attachment if:
+      // 1. It has a filename AND attachmentId (regular attachment)
+      // 2. OR it has a Content-ID AND attachmentId (inline image, may have empty filename)
+      final hasFilename = filename != null && filename.isNotEmpty;
+      final hasContentId = contentId != null && contentId.isNotEmpty;
+      final hasAttachmentId = attachmentId != null && attachmentId.isNotEmpty;
+
+      if (hasAttachmentId && (hasFilename || hasContentId)) {
+        // For inline images without filename, generate a name from mimeType
+        final effectiveFilename = (filename != null && filename.isNotEmpty)
+            ? filename
+            : 'inline_${contentId ?? DateTime.now().millisecondsSinceEpoch}.${_getExtFromMime(mimeType)}';
+
         attachments.add(AttachmentInfo(
           id: attachmentId,
-          filename: filename,
+          filename: effectiveFilename,
           mimeType: mimeType ?? 'application/octet-stream',
           size: size,
+          contentId: contentId,
         ));
       }
 
@@ -244,6 +277,18 @@ class EmailDetailModel {
 
     extractFromPart(payload);
     return attachments;
+  }
+
+  /// Get file extension from MIME type
+  static String _getExtFromMime(String? mimeType) {
+    if (mimeType == null) return 'bin';
+    if (mimeType.contains('jpeg') || mimeType.contains('jpg')) return 'jpg';
+    if (mimeType.contains('png')) return 'png';
+    if (mimeType.contains('gif')) return 'gif';
+    if (mimeType.contains('webp')) return 'webp';
+    if (mimeType.contains('bmp')) return 'bmp';
+    if (mimeType.contains('pdf')) return 'pdf';
+    return 'bin';
   }
 
   String get formattedDate {
@@ -303,13 +348,18 @@ class AttachmentInfo {
   final String filename;
   final String mimeType;
   final int size;
+  final String? contentId; // For inline images (cid: references)
 
   AttachmentInfo({
     required this.id,
     required this.filename,
     required this.mimeType,
     required this.size,
+    this.contentId,
   });
+
+  /// Check if this is an inline image (has Content-ID for cid: reference)
+  bool get isInline => contentId != null && contentId!.isNotEmpty;
 
   String get formattedSize {
     if (size < 1024) return '$size B';

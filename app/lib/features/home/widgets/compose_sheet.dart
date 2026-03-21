@@ -21,7 +21,7 @@ class ComposeSheet extends StatefulWidget {
     String? cc,
     String? bcc,
     bool isHtml,
-    List<Map<String, dynamic>>? attachments,
+    List<File>? attachments,
   }) onSend;
 
   const ComposeSheet({
@@ -251,26 +251,23 @@ class _ComposeSheetState extends State<ComposeSheet> {
       _isSending = true;
     });
 
+    final tempFilesToCleanup = <File>[];
+
     try {
-      // Prepare attachments
-      List<Map<String, dynamic>>? attachmentData;
+      // Prepare attachments as files for MIME multipart sending
+      List<File>? attachmentFiles;
       if (_attachments.isNotEmpty) {
-        attachmentData = [];
+        attachmentFiles = [];
         for (final file in _attachments) {
-          if (file.bytes != null) {
-            attachmentData.add({
-              'filename': file.name,
-              'bytes': file.bytes!,
-              'mimeType': null, // Will be detected by GmailService
-            });
-          } else if (file.path != null) {
-            // Read from path
-            final fileData = await File(file.path!).readAsBytes();
-            attachmentData.add({
-              'filename': file.name,
-              'bytes': fileData,
-              'mimeType': null,
-            });
+          if (file.path != null && file.path!.isNotEmpty) {
+            attachmentFiles.add(File(file.path!));
+          } else if (file.bytes != null) {
+            final tempFile = File(
+              '${Directory.systemTemp.path}/${DateTime.now().microsecondsSinceEpoch}_${file.name}',
+            );
+            await tempFile.writeAsBytes(file.bytes!);
+            attachmentFiles.add(tempFile);
+            tempFilesToCleanup.add(tempFile);
           }
         }
       }
@@ -282,7 +279,7 @@ class _ComposeSheetState extends State<ComposeSheet> {
         cc: _ccController.text.isNotEmpty ? _ccController.text : null,
         bcc: _bccController.text.isNotEmpty ? _bccController.text : null,
         isHtml: _isFormatting,
-        attachments: attachmentData,
+        attachments: attachmentFiles,
       );
       if (mounted) {
         Navigator.pop(context);
@@ -294,6 +291,11 @@ class _ComposeSheetState extends State<ComposeSheet> {
         );
       }
     } finally {
+      for (final tempFile in tempFilesToCleanup) {
+        if (await tempFile.exists()) {
+          await tempFile.delete();
+        }
+      }
       if (mounted) {
         setState(() {
           _isSending = false;
