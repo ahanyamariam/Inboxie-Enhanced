@@ -36,6 +36,9 @@ dependencies:
   # Image caching (profile photo)
   cached_network_image: ^3.4.1
 
+  # Environment variables
+  flutter_dotenv: ^5.1.0
+
   path_provider: ^2.1.5
   flutter_widget_from_html: ^0.17.1
   sqflite: ^2.3.3
@@ -53,6 +56,8 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - .env
 
 flutter_launcher_icons:
   android: true
