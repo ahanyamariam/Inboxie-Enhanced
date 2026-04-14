@@ -1,6 +1,11 @@
 # Environment files (contains secrets)
 .env
 
+# Firebase config files (contain API keys)
+lib/firebase_options.dart
+ios/Runner/GoogleService-Info.plist
+android/app/google-services.json
+
 # Miscellaneous
 *.class
 *.log
